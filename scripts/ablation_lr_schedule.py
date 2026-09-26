@@ -1,8 +1,11 @@
 """Ablation: constant learning rate vs linear warm-up + cosine decay, Banking77 quick profile, 3 seeds.
 
-Everything is scored on the VALIDATION split only (no test access). Runs in replay mode in its own workspace:
+Everything is scored on the VALIDATION split only (no test access). Runs in replay mode in its own workspace,
+``$ABLATION_HOME`` (default ``<repo>/.taskdistill-ablation``), never whatever ``TASKDISTILL_HOME`` an enclosing
+shell (e.g. its own working workspace) already has set:
 
     uv run python scripts/ablation_lr_schedule.py            # writes reports/ablations/lr_schedule.json
+    ABLATION_HOME=/tmp/ablation uv run python scripts/ablation_lr_schedule.py
 """
 
 from __future__ import annotations
@@ -18,10 +21,21 @@ ROOT = Path(__file__).resolve().parent.parent
 OUT = ROOT / "reports" / "ablations" / "lr_schedule.json"
 SEEDS = (13, 14, 15)
 SCHEDULES = ("constant", "warmup_cosine")
+DEFAULT_ABLATION_HOME = ROOT / ".taskdistill-ablation"
+
+
+def ablation_home() -> str:
+    """The ablation's own workspace: ``$ABLATION_HOME`` if set, else a repo-local default.
+
+    Never an inherited ``$TASKDISTILL_HOME`` (reproduce.sh nests the ablation's workspace under its own
+    ``$REPRODUCE_HOME`` by passing ``ABLATION_HOME``; run directly, without it, the ablation still gets its own
+    workspace rather than mixing with whatever workspace the caller's shell already has set).
+    """
+    return os.environ.get("ABLATION_HOME") or str(DEFAULT_ABLATION_HOME)
 
 
 def main() -> int:
-    os.environ.setdefault("TASKDISTILL_HOME", str(ROOT / ".taskdistill-ablation"))
+    os.environ["TASKDISTILL_HOME"] = ablation_home()
     for name in ("OPENROUTER_API_KEY", "TASKDISTILL_TEACHER_API_KEY"):
         os.environ.pop(name, None)  # replay only
 

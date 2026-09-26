@@ -16,6 +16,14 @@ from, even if the provider changes the model behind the same slug.
   seed, stop}`. The response cache, the replay and proxy capture all call it, and a test asserts they agree.
   Base URL, headers and `stream` are excluded. Other output-changing body fields (provider routing, reasoning
   controls) are recorded in the recording manifest instead.
+- **Numbers are canonical too.** JSON has one number type, so `0` and `0.0` are the same value, but Python
+  writes the spec's `temperature: 0.0` as `0.0` while JavaScript's `JSON.stringify`, Go and hand-written bodies
+  often send `0`. Before hashing, every float with an integral value, at any depth of the body, is written as
+  the integer it equals (`0.0` and `-0.0` as `0`, `1e20` as `100000000000000000000`), so integral floats hash
+  as integers and `"temperature": 0` and `"temperature": 0.0` give one key. Other floats keep Python's
+  shortest round-trip form (`0.7`). NaN and the infinities are not JSON numbers and are refused. A client in
+  any language that sends the same request as the recording therefore hits the replay, and the cache and
+  capture see one key per request. The packaged recordings are keyed with this rule.
 - **Recording.** Each demo ships `teacher_recording.jsonl.gz` as package data: a manifest line (schema version,
   teacher slug, pinned provider, teacher-prompt SHA-256, generation parameters including the extra body,
   pricing snapshot date), then one record per request key with the output, usage, latency, provider, finish

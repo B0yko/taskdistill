@@ -4,6 +4,10 @@ There is no demo-only code path: the demo imports data with the importer `captur
 sends the training inputs through the real capture proxy, then calls the same functions as `curate`,
 `train`, `eval --select`, `serve` and `report`. The only demo-specific parts are the datasets, the
 split assignment (in code, as ``meta.split``) and the fixed smoke-test queries.
+
+One demo invocation is one command run for the spend rules: its live teacher calls are charged to one ledger
+run, so ``--max-usd`` caps the capture, the labelling and the smoke test together, and the $0.50 ``--yes`` gate
+is applied once, to the projection of every uncached request the run will send.
 """
 
 from __future__ import annotations
@@ -158,7 +162,12 @@ class DemoContext:
     log: Callable[[str], Any]
     data: DemoData | None = None
     timings: dict[str, float] = field(default_factory=dict)
+    #: The training run the demo trained, selected and serves (not the ledger run).
     run_id: str | None = None
+    #: The ledger run every live teacher call of this demo invocation is charged to (``--max-usd`` is summed over it).
+    ledger_run_id: str | None = None
+    #: The stages this invocation runs (``--until`` truncates them).
+    stages: tuple[str, ...] = STAGES
 
     @property
     def marker(self) -> Path:
@@ -208,15 +217,24 @@ def stage_data(ctx: DemoContext) -> None:
         with path.open("w", encoding="utf-8") as fh:
             for row in rows:
                 fh.write(json.dumps(row, ensure_ascii=False) + "\n")
-        result = import_file(store, ctx.spec.task, path, "inputs")
+        result = import_file(store, ctx.spec.task, path, "inputs", predefined=ctx.spec.curate.split.predefined)
         ctx.log(f"      imported {result['imported']} {split} inputs with gold labels (--format inputs)")
     _write_state(ctx, profile=ctx.profile, imported=digest, counts=counts)
 
 
-def _teacher(ctx: DemoContext, phase: str) -> Any:
-    from taskdistill.teacher.factory import make_teacher, new_run_id
+def ledger_run(ctx: DemoContext) -> str:
+    """The demo invocation's ledger run id, minted on first use (``run_demo`` mints it up front)."""
+    if ctx.ledger_run_id is None:
+        from taskdistill.teacher.factory import new_run_id
 
-    return make_teacher(ctx.spec, mode=ctx.mode, phase=phase, run_id=new_run_id(f"demo-{phase}"), run_cap=ctx.max_usd)
+        ctx.ledger_run_id = new_run_id(f"demo-{ctx.name}")
+    return ctx.ledger_run_id
+
+
+def _teacher(ctx: DemoContext, phase: str) -> Any:
+    from taskdistill.teacher.factory import make_teacher
+
+    return make_teacher(ctx.spec, mode=ctx.mode, phase=phase, run_id=ledger_run(ctx), run_cap=ctx.max_usd)
 
 
 def stage_capture(ctx: DemoContext) -> None:
@@ -227,14 +245,14 @@ def stage_capture(ctx: DemoContext) -> None:
 
     assert ctx.data is not None
     store = Store()
-    seen = {row.request_key for row in store.iter_captures(ctx.spec.task) if row.captured}
+    seen = {row.request_key for row in store.iter_captures(ctx.spec.task) if row.captured and row.request_key}
     bodies = [build_teacher_request(ctx.spec, r["input"]) for r in ctx.data.records["train"]]
     todo = [b for b in bodies if request_key(b) not in seen]
+    if ctx.mode == "live":
+        _confirm_live_spend(ctx, todo, captured=seen)
     if not todo:
         ctx.log(f"      all {len(bodies)} training requests already captured")
         return
-    if ctx.mode == "live":
-        _confirm_live_capture(ctx, todo)
     teacher = _teacher(ctx, "demo-capture")
     proxy_port = free_port(CAPTURE_PORT)
     upstream_port = free_port(0)
@@ -257,20 +275,53 @@ def stage_capture(ctx: DemoContext) -> None:
     ctx.log(f"      captured {len(todo)} requests through the proxy ({counts['captured']} in the store)")
 
 
-def _confirm_live_capture(ctx: DemoContext, todo: list[dict[str, Any]]) -> None:
+def _labelling_requests(ctx: DemoContext, skip: set[str]) -> list[dict[str, Any]]:
+    """The requests curate will label: every imported input no capture answers (``skip``), once per request key."""
+    assert ctx.data is not None
+    seen = set(skip)
+    bodies: list[dict[str, Any]] = []
+    for rows in ctx.data.records.values():
+        for row in rows:
+            body = build_teacher_request(ctx.spec, row["input"])
+            key = request_key(body)
+            if key not in seen:
+                seen.add(key)
+                bodies.append(body)
+    return bodies
+
+
+def _confirm_live_spend(ctx: DemoContext, capture: list[dict[str, Any]], *, captured: set[str]) -> None:
+    """The $0.50 ``--yes`` gate, applied once to the whole demo run before its first live call.
+
+    The projection is the worst case (what the ledger reserves) of every request the run will send that the
+    response cache does not answer: the capture batch and, when the run reaches curate, the labelling of the
+    inputs no capture answers. So two stages that each stay under $0.50 cannot add up to an unconfirmed spend
+    above it. Curate keeps its own gate, projected from a sample of real calls: this worst case already covers
+    its share, so it only asks again if the sample costs more than the worst case allowed or the task holds
+    inputs the demo did not import.
+    """
     from taskdistill.ledger import worst_case_cost
-    from taskdistill.teacher.cache import ResponseCache
+    from taskdistill.teacher.cache import ResponseCache, request_context
     from taskdistill.teacher.client import confirm_spend
     from taskdistill.teacher.factory import load_pricing
 
+    labelling: list[dict[str, Any]] = []
+    if "curate" in ctx.stages:
+        labelling = _labelling_requests(ctx, captured | {request_key(body) for body in capture})
     cache = ResponseCache()
-    uncached = [b for b in todo if cache.get(request_key(b)) is None]
-    if not uncached:
-        return
-    price = load_pricing().price_for(ctx.spec.teacher.model, ctx.spec.teacher.provider)
-    projected = sum(worst_case_cost(b, price) for b in uncached)
-    ctx.log(f"      {len(uncached)} uncached live requests, worst-case projection ${projected:.2f}")
-    confirm_spend(projected, ctx.yes)
+
+    def uncached(bodies: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        return [b for b in bodies if cache.get(request_key(b), request_context(b)) is None]
+
+    live_capture, live_labelling = uncached(capture), uncached(labelling)
+    if live_capture or live_labelling:
+        price = load_pricing().price_for(ctx.spec.teacher.model, ctx.spec.teacher.provider)
+        projected = sum(worst_case_cost(b, price) for b in [*live_capture, *live_labelling])
+        ctx.log(
+            f"      {len(live_capture) + len(live_labelling)} uncached live requests for this demo run "
+            f"({len(live_capture)} capture, {len(live_labelling)} labelling), worst-case projection ${projected:.2f}"
+        )
+        confirm_spend(projected, ctx.yes)
 
 
 async def _send_all(base_url: str, bodies: list[dict[str, Any]], api_key: str | None) -> list[str]:
@@ -364,6 +415,21 @@ def stage_eval(ctx: DemoContext) -> None:
     )
 
 
+def _serve_cap(ctx: DemoContext) -> float | None:
+    """What is left of ``--max-usd`` for the smoke test: the cap minus what the demo's ledger run has committed.
+
+    ``build_server`` charges its teacher to a ledger run of its own, so handing it the whole cap would give the
+    smoke test a fresh budget on top of the capture and labelling spend.
+    """
+    if ctx.max_usd is None or ctx.mode != "live":
+        return ctx.max_usd
+    from taskdistill.ledger import Ledger
+
+    left = max(0.0, ctx.max_usd - Ledger().committed(run_id=ledger_run(ctx)))
+    ctx.log(f"      smoke-test spend cap: ${left:.4f} left of --max-usd ${ctx.max_usd:.2f}")
+    return left
+
+
 def stage_serve(ctx: DemoContext) -> None:
     """Start the cascade server, send the fixed smoke queries, print routes and confidences."""
     from taskdistill.serve.runner import build_server
@@ -378,7 +444,7 @@ def stage_serve(ctx: DemoContext) -> None:
         backend=ctx.backend,
         replay=ctx.mode == "replay",
         port=port,
-        max_usd=ctx.max_usd,
+        max_usd=_serve_cap(ctx),
     )
     for line in banner:
         ctx.log(f"      {line}")
@@ -457,12 +523,13 @@ def run_demo(
     if until is not None and until not in STAGES:
         raise DemoError(f"--until must be one of {', '.join(STAGES)}")
     spec = load_task(name)
-    from taskdistill.teacher.factory import resolve_mode
+    from taskdistill.teacher.factory import new_run_id, resolve_mode
 
     mode = resolve_mode(spec, "live" if live else "replay")
+    stages = STAGES[: STAGES.index(until) + 1] if until else STAGES
     ctx = DemoContext(
         name=name, profile=profile, spec=spec, mode=mode, yes=yes, max_usd=max_usd, backend=backend,
-        base=base, seed=seed, log=log,
+        base=base, seed=seed, log=log, ledger_run_id=new_run_id(f"demo-{name}"), stages=stages,
     )  # fmt: skip
     teacher_note = (
         "replay (recorded teacher outputs; pass --live for real calls)"
@@ -470,7 +537,9 @@ def run_demo(
         else f"live ({spec.teacher.model})"
     )
     log(f"taskdistill demo {name}: profile {profile}, teacher {teacher_note}, workspace {paths.home().name}/")
-    stages = STAGES[: STAGES.index(until) + 1] if until else STAGES
+    if mode == "live":
+        cap = "no --max-usd" if max_usd is None else f"--max-usd ${max_usd:.2f} for the whole run"
+        log(f"live teacher calls are charged to ledger run {ctx.ledger_run_id} ({cap})")
     started = time.perf_counter()
     for i, stage in enumerate(stages, 1):
         log(f"[{i}/{len(STAGES)}] {STAGE_TITLES[stage]}")

@@ -121,6 +121,20 @@ def init(
 
 
 # --------------------------------------------------------------------------------------------- capture
+def _predefined_split_field(task: str) -> str | None:
+    """The task's ``curate.split.predefined`` (the meta field that fixes a row's split, or None when unset).
+
+    An import may come before the task spec exists (or while it does not load); the importer then checks the
+    spec's default field, ``meta.split``.
+    """
+    from taskdistill.config import ConfigError, SplitSpec, load_task
+
+    try:
+        return load_task(task).curate.split.predefined
+    except ConfigError:
+        return SplitSpec().predefined
+
+
 @app.command()
 @handle_errors
 def capture(
@@ -142,7 +156,7 @@ def capture(
     if import_path is not None:
         from taskdistill.capture.importer import import_file
 
-        counts = import_file(store, task, import_path, fmt)
+        counts = import_file(store, task, import_path, fmt, predefined=_predefined_split_field(task))
         typer.echo(f"imported {counts['imported']} of {counts['read']} rows ({fmt}) into task {task}")
         out = _write_json(
             paths.task_home(task) / "last_import.json", {"task": task, "file": import_path.name, **counts}
@@ -241,6 +255,11 @@ def eval_command(
     backend: str = typer.Option("mlx", "--backend", help="mlx | torch"),
     select: bool = typer.Option(False, "--select", help="Choose the run on validation first (selected_run.json)."),
     zero_shot: bool = typer.Option(False, "--zero-shot", help="Evaluate the base model zero-shot instead."),
+    base: str | None = typer.Option(
+        None,
+        "--base",
+        help="With --zero-shot: the base model to evaluate (default: the base of --run or the selected run).",
+    ),
     fast: bool = typer.Option(False, "--fast", help="Skip the alternative confidence scores (quick profile)."),
 ) -> None:
     """Score the student, the teacher (recorded) and the cascade; pick the threshold on validation."""
@@ -249,10 +268,25 @@ def eval_command(
 
     if split not in ("test", "valid"):
         raise ValueError("--split must be test or valid")
+    if base is not None and not zero_shot:
+        raise ValueError(
+            "--base only applies with --zero-shot: a trained run is evaluated on the base it was trained on; "
+            "choose the run with --run"
+        )
+    if base is not None and run is not None:
+        raise ValueError("--zero-shot takes either --run (that run's base model) or --base, not both")
     spec = load_task(task)
     command = "taskdistill " + " ".join(sys.argv[1:]) if sys.argv else None
     result = run_eval(
-        spec, run_id=run, split=split, backend=backend, select=select, zero_shot=zero_shot, fast=fast, command=command
+        spec,
+        run_id=run,
+        split=split,
+        backend=backend,
+        select=select,
+        zero_shot=zero_shot,
+        base=base,
+        fast=fast,
+        command=command,
     )
     student = result.get("systems", {}).get("student", {}).get("metrics", {})
     shown = {k: v for k, v in student.items() if isinstance(v, float)}

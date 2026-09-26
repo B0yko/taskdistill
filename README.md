@@ -134,6 +134,7 @@ Say your application classifies support tickets with a paid API model.
 
    ```python
    from openai import OpenAI
+
    client = OpenAI(base_url="http://127.0.0.1:8787/t/tickets/v1", api_key=YOUR_KEY)  # the key is passed through
    ```
 
@@ -223,7 +224,7 @@ names the offending key.
 | `cascade.metric` | `agreement` | `agreement` (label equality, or field micro-F1 against the teacher for extraction), `accuracy` or `macro_f1` (classification), `field_f1` (extraction). |
 | `cascade.target` | — | Minimum cascade quality on validation, e.g. `0.97`. Set exactly one of `target` and `max_drop`. |
 | `cascade.max_drop` | — | Maximum drop below the teacher's own score on the reference, usually with `reference: gold`. |
-| `cascade.on_teacher_error` | `student` | On a teacher timeout or error: return the student's answer (`student-fallback`) or an HTTP 502 (`error`). A replay miss is always an error. |
+| `cascade.on_teacher_error` | `student` | On a teacher timeout or error: return the student's answer (`student-fallback`) or an HTTP 502 (`error`). A replay miss is always an error. `serve`'s escalation gives up quickly rather than retrying like a batch job: a 10 s HTTP timeout, at most 1 retry, `Retry-After` honoured up to 2 s, all within a 30 s deadline for the whole call (wait for a free connection included), so a hung or rate-limited teacher falls back within seconds, not minutes. |
 | `cascade.escalation_response` | `canonical` | `canonical` normalises and renders the teacher's answer like a student answer; `raw` returns it verbatim. |
 | `cost.local_watts` | `20` | Power draw assumed for local inference and training. |
 | `cost.usd_per_kwh` | `0.30` | Electricity price. |

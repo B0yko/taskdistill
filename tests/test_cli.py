@@ -335,6 +335,75 @@ def test_capture_import_and_export_are_exclusive(tmp_path: Path) -> None:
     assert_fails(result, "--import", "--export")
 
 
+def set_predefined(value: str) -> None:
+    """Set ``curate.split.predefined`` in the scaffolded spec of ``TASK``."""
+    spec_file = Path.cwd() / "tasks" / TASK / "task.yaml"
+    text = spec_file.read_text(encoding="utf-8")
+    assert "predefined: meta.split" in text
+    spec_file.write_text(text.replace("predefined: meta.split", f"predefined: {value}"), encoding="utf-8")
+
+
+@pytest.fixture
+def import_calls(monkeypatch: pytest.MonkeyPatch) -> list[dict[str, Any]]:
+    """Every ``import_file`` call of the capture command, answered with a one-row import."""
+    import taskdistill.capture.importer
+
+    calls: list[dict[str, Any]] = []
+
+    def fake_import_file(store: Store, task: str, path: Path, fmt: str, **kwargs: Any) -> dict[str, Any]:
+        calls.append({"task": task, "format": fmt, **kwargs})
+        return {"read": 1, "imported": 1, "blank": 0, "format": fmt}
+
+    monkeypatch.setattr(taskdistill.capture.importer, "import_file", fake_import_file)
+    return calls
+
+
+@pytest.mark.parametrize(("setting", "expected"), [(None, "meta.split"), ("meta.fold", "meta.fold"), ("null", None)])
+def test_capture_import_checks_the_specs_predefined_split_field(
+    setting: str | None, expected: str | None, import_calls: list[dict[str, Any]]
+) -> None:
+    init_task()
+    if setting is not None:
+        set_predefined(setting)
+    source = write_jsonl(Path.cwd() / "in.jsonl", [{"input": "Where is my refund?", "meta": {"split": "train"}}])
+
+    assert_ok(invoke("capture", "--task", TASK, "--import", str(source), "--format", "inputs"))
+
+    assert import_calls == [{"task": TASK, "format": "inputs", "predefined": expected}]
+
+
+@pytest.mark.parametrize("broken", [False, True])
+def test_capture_import_without_a_loadable_spec_checks_meta_split(
+    broken: bool, import_calls: list[dict[str, Any]]
+) -> None:
+    """An import may come before `taskdistill init`, or while the spec is being edited: the default field applies."""
+    if broken:
+        init_task()
+        (Path.cwd() / "tasks" / TASK / "task.yaml").write_text("task: [unclosed\n", encoding="utf-8")
+    source = write_jsonl(Path.cwd() / "in.jsonl", [{"input": "Where is my refund?"}])
+
+    assert_ok(invoke("capture", "--task", TASK, "--import", str(source), "--format", "inputs"))
+
+    assert import_calls == [{"task": TASK, "format": "inputs", "predefined": "meta.split"}]
+
+
+def test_capture_import_refuses_a_bad_value_in_the_specs_split_field() -> None:
+    init_task()
+    set_predefined("meta.fold")
+    source = write_jsonl(Path.cwd() / "fold.jsonl", [
+        {"input": "Where is my refund?", "meta": {"fold": "eval", "split": "train"}},
+    ])  # fmt: skip
+
+    assert_fails(invoke("capture", "--task", TASK, "--import", str(source), "--format", "inputs"), "fold.jsonl:1")
+    assert list(Store().iter_imports(TASK)) == []
+
+    source = write_jsonl(Path.cwd() / "split.jsonl", [
+        {"input": "Where is my refund?", "meta": {"fold": "valid", "split": "eval"}},  # meta.split is not the field
+    ])  # fmt: skip
+    assert_ok(invoke("capture", "--task", TASK, "--import", str(source), "--format", "inputs"))
+    assert len(list(Store().iter_imports(TASK))) == 1
+
+
 # ------------------------------------------------------------------------------------------------ budget
 def test_budget_on_empty_workspace(workspace: Path) -> None:
     out = assert_ok(invoke("budget"))
@@ -375,6 +444,65 @@ def test_demo_unknown_profile() -> None:
 def test_eval_rejects_unknown_split() -> None:
     init_task()
     assert_fails(invoke("eval", "--task", TASK, "--split", "bogus", "--backend", "torch"), "--split", "test", "valid")
+
+
+@pytest.fixture
+def eval_calls(monkeypatch: pytest.MonkeyPatch) -> list[dict[str, Any]]:
+    """Every ``run_eval`` call of the eval command, answered with a small result (no model is loaded)."""
+    import taskdistill.evaluate.runner
+
+    calls: list[dict[str, Any]] = []
+
+    def fake_run_eval(spec: Any, **kwargs: Any) -> dict[str, Any]:
+        calls.append(kwargs)
+        return {"run_id": "zero-shot-qwen2.5-0.5b", "n": 4, "systems": {"student": {"metrics": {"accuracy": 0.5}}}}
+
+    monkeypatch.setattr(taskdistill.evaluate.runner, "run_eval", fake_run_eval)
+    return calls
+
+
+def test_eval_zero_shot_passes_base_through(eval_calls: list[dict[str, Any]]) -> None:
+    init_task()
+    base = "mlx-community/Qwen2.5-0.5B-Instruct-4bit"
+
+    out = assert_ok(invoke("eval", "--task", TASK, "--zero-shot", "--base", base))
+
+    assert "zero-shot-qwen2.5-0.5b on test (n=4): accuracy 0.5000" in out
+    (call,) = eval_calls
+    assert call["zero_shot"] is True
+    assert call["base"] == base
+    assert call["run_id"] is None
+
+
+def test_eval_without_base_leaves_the_base_to_eval(eval_calls: list[dict[str, Any]]) -> None:
+    init_task()
+
+    assert_ok(invoke("eval", "--task", TASK, "--zero-shot"))
+    assert_ok(invoke("eval", "--task", TASK, "--run", "qwen2.5-0.5b-full-s13"))
+
+    assert [(call["zero_shot"], call["run_id"], call["base"]) for call in eval_calls] == [
+        (True, None, None),
+        (False, "qwen2.5-0.5b-full-s13", None),
+    ]
+
+
+@pytest.mark.parametrize("extra", [(), ("--run", "qwen2.5-0.5b-full-s13"), ("--select",)])
+def test_eval_base_needs_zero_shot(extra: tuple[str, ...], eval_calls: list[dict[str, Any]]) -> None:
+    init_task()
+
+    result = invoke("eval", "--task", TASK, "--base", "mlx-community/Qwen2.5-1.5B-Instruct-4bit", *extra)
+
+    assert_fails(result, "--base only applies with --zero-shot", "--run")
+    assert eval_calls == []
+
+
+def test_eval_zero_shot_takes_run_or_base_not_both(eval_calls: list[dict[str, Any]]) -> None:
+    init_task()
+
+    result = invoke("eval", "--task", TASK, "--zero-shot", "--run", "qwen2.5-1.5b-full-s13", "--base", "some/base")
+
+    assert_fails(result, "--zero-shot takes either --run", "--base, not both")
+    assert eval_calls == []
 
 
 def test_report_without_evaluation() -> None:
