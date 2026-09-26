@@ -10,6 +10,7 @@ only.
 from __future__ import annotations
 
 import json
+import os
 import threading
 from pathlib import Path
 from typing import Any
@@ -21,6 +22,7 @@ from taskdistill.backends.factory import configure_mlx
 from taskdistill.confidence import LabelTrie
 from taskdistill.models import resolve_model_path
 
+FUSE_ENV = "TASKDISTILL_MLX_FUSE"
 PREFILL_STEP = 2048
 
 
@@ -72,10 +74,15 @@ class MLXBackend(Backend):
         *,
         revision: str | None = None,
         prefill_step: int = PREFILL_STEP,
+        fuse: bool | None = None,
     ) -> None:
         super().__init__(base_model, None if adapter_path is None else str(adapter_path))
         self.revision = revision
         self.prefill_step = prefill_step
+        if fuse is None:
+            fuse = os.environ.get(FUSE_ENV, "1").strip().lower() not in ("0", "false", "no")
+        self.fuse = fuse
+        self.fused = False
         self.model: Any = None
         self.vocab_size: int | None = None
         self._wrapper: Any = None
@@ -97,6 +104,8 @@ class MLXBackend(Backend):
             path = resolve_model_path(self.base_model, self.revision)
             loaded = mlx_load(str(path), adapter_path=self.adapter_path)
             model, wrapper = loaded[0], loaded[1]
+            if self.adapter_path is not None and self.fuse:
+                self.fused = _fuse_lora(model) > 0
             model.eval()
             mx.eval(model.parameters())  # lazily loaded adapter weights would stay bound to this thread
             tokenizer = getattr(wrapper, "_tokenizer", wrapper)
@@ -124,6 +133,21 @@ class MLXBackend(Backend):
     def label_trie(self, labels: list[str], messages: list[dict[str, str]] | None = None) -> LabelTrie:
         self._ensure_loaded()
         return super().label_trie(labels, messages)
+
+
+def _fuse_lora(model: Any) -> int:
+    """Merge LoRA weights into the (re-quantised) base layers in memory; returns the number fused.
+
+    An unfused adapter runs two extra matmuls per projection and roughly doubles decoding latency. The merge
+    is the same operation as ``mlx_lm fuse`` without writing anything to disk; eval and serve both load
+    through this backend, so thresholds are chosen on the same fused model that serves.
+    """
+    from mlx.utils import tree_unflatten
+
+    fused = [(name, module.fuse(dequantize=False)) for name, module in model.named_modules() if hasattr(module, "fuse")]
+    if fused:
+        model.update_modules(tree_unflatten(fused))
+    return len(fused)
 
 
 def check_adapter_base(adapter_path: str, base_model: str) -> None:
