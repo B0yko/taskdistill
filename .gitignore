@@ -1,0 +1,38 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+build/
+dist/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# taskdistill workspace (store, cache, ledger, data, runs)
+.taskdistill/
+/tasks/
+/request.json
+
+# model artefacts: adapters, fused/merged models, Hugging Face cache
+adapters/
+*.safetensors
+fused_model/
+fused/
+merged/
+.cache/
+huggingface/
+hf_cache/
+
+# secrets and local env
+.env
+*.env
+!.env.example
+
+# OS / editors
+.DS_Store
+.idea/
+.vscode/
+*.cast
