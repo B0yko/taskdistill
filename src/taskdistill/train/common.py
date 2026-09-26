@@ -88,6 +88,7 @@ class TrainConfig:
     run_dir: str
     data_dir: str
     task_type: str = "classification"
+    lr_schedule: str = "warmup_cosine"
 
     def to_dict(self) -> dict[str, Any]:
         return dataclasses.asdict(self)
@@ -147,14 +148,51 @@ def short_model_name(base: str) -> str:
     return name or "model"
 
 
-def run_id(base: str, profile: str, seed: int, labels: str = "teacher", backend: str = "mlx") -> str:
-    """Deterministic run id: ``<short>-<profile>-s<seed>[-gold][-torch]``."""
+def run_id(
+    base: str,
+    profile: str,
+    seed: int,
+    labels: str = "teacher",
+    backend: str = "mlx",
+    lr_schedule: str = "warmup_cosine",
+) -> str:
+    """Deterministic run id: ``<short>-<profile>-s<seed>[-gold][-torch][-constant]``."""
     rid = f"{short_model_name(base)}-{profile}-s{seed}"
     if labels == "gold":
         rid += "-gold"
     if backend == "torch":
         rid += "-torch"
+    if lr_schedule != "warmup_cosine":
+        rid += f"-{lr_schedule}"
     return rid
+
+
+# -- learning-rate schedule ------------------------------------------------------------------------
+
+#: Linear warm-up over this fraction of the iterations (at most WARMUP_MAX), then cosine decay to
+#: FINAL_LR_FRACTION of the peak. Both trainers use :func:`lr_at`, so a seed sees the same schedule on both.
+WARMUP_FRACTION = 0.1
+WARMUP_MAX = 100
+FINAL_LR_FRACTION = 0.1
+
+
+def warmup_iters(iters: int, schedule: str = "warmup_cosine") -> int:
+    if schedule == "constant" or iters <= 1:
+        return 0
+    return max(1, min(WARMUP_MAX, round(WARMUP_FRACTION * iters)))
+
+
+def lr_at(step: int, peak: float, iters: int, schedule: str = "warmup_cosine") -> float:
+    """Learning rate for optimiser step ``step`` (0-based)."""
+    if schedule == "constant":
+        return peak
+    warm = warmup_iters(iters, schedule)
+    if step < warm:
+        return peak * (step + 1) / warm
+    final = peak * FINAL_LR_FRACTION
+    span = max(1, iters - warm)
+    progress = min(1.0, (step - warm) / span)
+    return final + 0.5 * (peak - final) * (1.0 + math.cos(math.pi * progress))
 
 
 # -- schedule --------------------------------------------------------------------------------------
@@ -304,7 +342,7 @@ def plan_training(
 
     batch_size = max(1, min(spec.train.batch_size, n_train))
     iters = compute_iterations(spec.train.epochs, n_train, batch_size, chosen_profile)
-    rid = run_id(base_model, chosen_profile, chosen_seed, labels, backend)
+    rid = run_id(base_model, chosen_profile, chosen_seed, labels, backend, spec.train.lr_schedule)
     run_dir = paths.runs_dir(spec.task) / rid
     return TrainConfig(
         task=spec.task,
@@ -329,6 +367,7 @@ def plan_training(
         run_dir=str(run_dir),
         data_dir=str(run_dir / "data"),
         task_type=spec.type,
+        lr_schedule=spec.train.lr_schedule,
     )
 
 
@@ -485,6 +524,8 @@ def write_train_log(cfg: TrainConfig, log: dict[str, Any]) -> Path:
         "epochs": round(cfg.epochs_trained, 4),
         "batch_size": cfg.batch_size,
         "learning_rate": cfg.learning_rate,
+        "lr_schedule": cfg.lr_schedule,
+        "warmup_iterations": warmup_iters(cfg.iters, cfg.lr_schedule),
         "lora_rank": cfg.lora_rank,
         "lora_layers": cfg.lora_layers,
         "max_seq_len": cfg.max_seq_len,

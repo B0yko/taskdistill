@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import math
+import types
 from collections import Counter
 from pathlib import Path
 from typing import Any
@@ -641,3 +642,31 @@ def test_load_backend_torch_maps_the_mlx_base_and_defers_loading() -> None:
     assert backend.base_model == "Qwen/Qwen2.5-0.5B-Instruct"
     assert backend.adapter_path == "runs/x/adapter"
     assert backend.tokenizer is None  # nothing is loaded until the serving thread calls load()
+
+
+def test_lr_schedule_warmup_then_cosine() -> None:
+    from taskdistill.train.common import lr_at, warmup_iters
+
+    assert warmup_iters(200) == 20 and warmup_iters(2219) == 100 and warmup_iters(200, "constant") == 0
+    peak = 1e-4
+    assert lr_at(0, peak, 200) == pytest.approx(peak / 20)
+    assert lr_at(19, peak, 200) == pytest.approx(peak)
+    assert lr_at(20, peak, 200) == pytest.approx(peak)
+    assert lr_at(199, peak, 200) == pytest.approx(peak * 0.1, rel=1e-3)
+    assert lr_at(110, peak, 200) == pytest.approx(peak * 0.1 + 0.5 * peak * 0.9 * (1 + math.cos(math.pi * 0.5)))
+    assert lr_at(57, peak, 200, "constant") == peak
+
+
+def test_mlx_schedule_matches_lr_at() -> None:
+    pytest.importorskip("mlx.core")
+    import mlx.core as mx
+
+    from taskdistill.train.common import lr_at
+    from taskdistill.train.mlx_lora import lr_schedule
+
+    cfg = types.SimpleNamespace(lr_schedule="warmup_cosine", learning_rate=1e-4, iters=200)
+    schedule = lr_schedule(cfg)  # type: ignore[arg-type]
+    for step in (0, 5, 19, 20, 100, 199, 250):
+        assert float(schedule(mx.array(step))) == pytest.approx(lr_at(step, 1e-4, 200), rel=1e-5)
+    constant = types.SimpleNamespace(lr_schedule="constant", learning_rate=1e-4, iters=200)
+    assert lr_schedule(constant) == 1e-4  # type: ignore[arg-type]

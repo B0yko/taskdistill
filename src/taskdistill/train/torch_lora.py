@@ -12,7 +12,8 @@ available). The training contract is the MLX trainer's (:mod:`taskdistill.train.
 - LoRA scale: mlx-lm adds ``scale * x A B`` with ``scale = 20``, PEFT adds ``(lora_alpha / r) * x A B``,
   so ``lora_alpha = 20 * lora_rank`` gives the same update (both start ``A`` uniform in
   ``±1/sqrt(fan_in)`` and ``B`` at zero, so the adapter starts as a no-op);
-- AdamW with weight decay 0 (the same update as the MLX trainer's Adam) at a constant learning rate;
+- AdamW with weight decay 0 (the same update as the MLX trainer's Adam) under the shared learning-rate
+  schedule (:func:`taskdistill.train.common.lr_at`: linear warm-up, then cosine decay);
   a float16 base (Unsloth on GPUs without bfloat16) adds ``torch.amp.GradScaler`` loss scaling;
 - full batches from a seeded permutation of the training rows per epoch (``random.Random(seed)``, as
   the MLX trainer), an epoch's last batch completed from the next permutation; right padding; the
@@ -398,6 +399,10 @@ def train_torch(cfg: common.TrainConfig, spec: Any, *, log: Logger = print) -> d
     schedule = batch_schedule(len(train_rows), batch_size, cfg.iters, cfg.seed)
     params = [p for p in model.parameters() if p.requires_grad]
     optimizer = torch.optim.AdamW(params, lr=cfg.learning_rate, weight_decay=0.0)
+    scheduler = torch.optim.lr_scheduler.LambdaLR(
+        optimizer,
+        lambda step: common.lr_at(step, 1.0, cfg.iters, cfg.lr_schedule),  # multiplier of the peak rate
+    )
     scaler = _grad_scaler(model, device, loader)
     n_trainable = sum(p.numel() for p in params)
     log(
@@ -446,6 +451,7 @@ def train_torch(cfg: common.TrainConfig, spec: Any, *, log: Logger = print) -> d
             scaler.scale(loss).backward()
             scaler.step(optimizer)
             scaler.update()
+        scheduler.step()
         optimizer.zero_grad(set_to_none=True)
         value = float(loss.detach().float().item())  # synchronises the device
         train_seconds += time.perf_counter() - tic

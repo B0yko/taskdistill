@@ -39,6 +39,7 @@ from taskdistill.hardware import load_average
 from taskdistill.models import resolve_model_path
 from taskdistill.paths import relative_to_home
 from taskdistill.train.common import (
+    FINAL_LR_FRACTION,
     LORA_DROPOUT,
     LORA_SCALE,
     TrainConfig,
@@ -46,6 +47,7 @@ from taskdistill.train.common import (
     library_versions,
     read_jsonl,
     validation_split_for,
+    warmup_iters,
     write_train_log,
 )
 
@@ -245,6 +247,27 @@ def _portable_base(base_model: str) -> str:
     return relative_to_home(base_model) if Path(base_model).is_absolute() else base_model
 
 
+def lr_schedule(cfg: TrainConfig) -> Any:
+    """The optimiser's learning rate: a float, or an mx schedule equal to :func:`common.lr_at` at every step."""
+    if cfg.lr_schedule == "constant":
+        return cfg.learning_rate
+    import mlx.core as mx
+
+    peak = cfg.learning_rate
+    warm = warmup_iters(cfg.iters, cfg.lr_schedule)
+    final = peak * FINAL_LR_FRACTION
+    span = max(1, cfg.iters - warm)
+
+    def schedule(step: Any) -> Any:
+        step = step.astype(mx.float32)
+        warmup = peak * (step + 1.0) / warm
+        progress = mx.minimum(mx.maximum(step - warm, 0.0) / span, 1.0)
+        decay = final + 0.5 * (peak - final) * (1.0 + mx.cos(math.pi * progress))
+        return mx.where(step < warm, warmup, decay)
+
+    return schedule
+
+
 def train_mlx(cfg: TrainConfig) -> dict[str, Any]:
     """Train the run described by ``cfg``; writes the adapter, ``train_log.json`` and ``loss.png``."""
     started = time.perf_counter()
@@ -352,7 +375,7 @@ def train_mlx(cfg: TrainConfig) -> dict[str, Any]:
     train_started = time.perf_counter()
     train(
         model=model,
-        optimizer=optim.Adam(learning_rate=cfg.learning_rate),
+        optimizer=optim.Adam(learning_rate=lr_schedule(cfg)),
         train_dataset=train_set,
         val_dataset=valid_set if len(valid_set) else None,
         args=args,

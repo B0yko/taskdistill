@@ -136,6 +136,7 @@ class TrainSpec(_Strict):
     epochs: float = Field(default=2, gt=0)
     max_seq_len: int = Field(default=512, gt=0)
     seed: int = 13
+    lr_schedule: Literal["warmup_cosine", "constant"] = "warmup_cosine"
 
 
 class DedupeSpec(_Strict):
