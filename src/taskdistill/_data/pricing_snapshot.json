@@ -1,0 +1,1731 @@
+{
+  "aliases": {
+    "deepseek/deepseek-v4-flash-20260423": "deepseek/deepseek-v4-flash",
+    "deepseek/deepseek-v4-flash-20260731": "deepseek/deepseek-v4-flash-0731",
+    "deepseek/deepseek-v4.1-flash-20260910": "deepseek/deepseek-v4.1-flash",
+    "qwen/qwen3-235b-a22b-07-25": "qwen/qwen3-235b-a22b-2507",
+    "qwen/qwen3-next-80b-a3b-instruct-2509": "qwen/qwen3-next-80b-a3b-instruct",
+    "qwen/qwen3.7-flash-20260727": "qwen/qwen3.7-flash"
+  },
+  "capabilities": {
+    "deepseek/deepseek-v4-flash": {
+      "endpoints": {
+        "alibaba/fp8": [
+          "include_reasoning",
+          "max_tokens",
+          "reasoning",
+          "reasoning_effort",
+          "response_format",
+          "seed",
+          "stop",
+          "structured_outputs",
+          "temperature",
+          "top_p"
+        ],
+        "atlas-cloud/fp4": [
+          "include_reasoning",
+          "max_tokens",
+          "reasoning",
+          "reasoning_effort",
+          "response_format",
+          "seed",
+          "stop",
+          "structured_outputs",
+          "temperature",
+          "top_p"
+        ],
+        "azure/us": [
+          "include_reasoning",
+          "max_completion_tokens",
+          "max_tokens",
+          "reasoning",
+          "reasoning_effort",
+          "response_format",
+          "temperature",
+          "top_p"
+        ],
+        "baidu/fp8": [
+          "include_reasoning",
+          "max_tokens",
+          "reasoning",
+          "reasoning_effort",
+          "response_format",
+          "stop",
+          "structured_outputs",
+          "temperature",
+          "top_p"
+        ],
+        "deepinfra/fp8": [
+          "include_reasoning",
+          "max_tokens",
+          "reasoning",
+          "reasoning_effort",
+          "response_format",
+          "seed",
+          "stop",
+          "structured_outputs",
+          "temperature",
+          "top_p"
+        ],
+        "digitalocean": [
+          "include_reasoning",
+          "max_tokens",
+          "reasoning",
+          "reasoning_effort",
+          "response_format",
+          "structured_outputs",
+          "temperature",
+          "top_p"
+        ],
+        "gmicloud/fp8": [
+          "include_reasoning",
+          "max_tokens",
+          "reasoning",
+          "reasoning_effort",
+          "response_format",
+          "seed",
+          "temperature",
+          "top_p"
+        ],
+        "mancer/fp8": [
+          "include_reasoning",
+          "max_tokens",
+          "reasoning",
+          "reasoning_effort",
+          "response_format",
+          "seed",
+          "stop",
+          "structured_outputs",
+          "temperature",
+          "top_p"
+        ],
+        "nextbit/fp8": [
+          "include_reasoning",
+          "max_tokens",
+          "reasoning",
+          "reasoning_effort",
+          "response_format",
+          "seed",
+          "stop",
+          "structured_outputs",
+          "temperature",
+          "top_p"
+        ],
+        "novita/fp8": [
+          "include_reasoning",
+          "max_tokens",
+          "reasoning",
+          "reasoning_effort",
+          "response_format",
+          "seed",
+          "stop",
+          "temperature",
+          "top_p"
+        ],
+        "open-inference/fp8": [
+          "include_reasoning",
+          "max_tokens",
+          "reasoning",
+          "reasoning_effort",
+          "response_format",
+          "seed",
+          "stop",
+          "structured_outputs",
+          "temperature",
+          "top_p"
+        ],
+        "parasail/fp8": [
+          "include_reasoning",
+          "max_tokens",
+          "reasoning",
+          "reasoning_effort",
+          "response_format",
+          "seed",
+          "stop",
+          "structured_outputs",
+          "temperature",
+          "top_p"
+        ],
+        "relace/fp4": [
+          "include_reasoning",
+          "max_tokens",
+          "reasoning",
+          "reasoning_effort",
+          "response_format",
+          "stop",
+          "temperature",
+          "top_p"
+        ],
+        "siliconflow/fp8": [
+          "include_reasoning",
+          "max_tokens",
+          "reasoning",
+          "reasoning_effort",
+          "response_format",
+          "temperature",
+          "top_p"
+        ],
+        "streamlake/fp8": [
+          "include_reasoning",
+          "max_tokens",
+          "reasoning",
+          "reasoning_effort",
+          "response_format",
+          "stop",
+          "structured_outputs",
+          "temperature",
+          "top_p"
+        ],
+        "venice": [
+          "include_reasoning",
+          "max_tokens",
+          "reasoning",
+          "reasoning_effort",
+          "response_format",
+          "stop",
+          "structured_outputs",
+          "temperature",
+          "top_p"
+        ]
+      },
+      "reasoning": {
+        "default_effort": "high",
+        "mandatory": false,
+        "supported_efforts": [
+          "xhigh",
+          "high"
+        ]
+      },
+      "supported_parameters": [
+        "frequency_penalty",
+        "include_reasoning",
+        "logit_bias",
+        "logprobs",
+        "max_completion_tokens",
+        "max_tokens",
+        "min_p",
+        "presence_penalty",
+        "reasoning",
+        "reasoning_effort",
+        "repetition_penalty",
+        "response_format",
+        "seed",
+        "stop",
+        "structured_outputs",
+        "temperature",
+        "tool_choice",
+        "tools",
+        "top_a",
+        "top_k",
+        "top_logprobs",
+        "top_p"
+      ]
+    },
+    "deepseek/deepseek-v4-flash-0731": {
+      "endpoints": {
+        "alibaba": [
+          "include_reasoning",
+          "max_tokens",
+          "reasoning",
+          "reasoning_effort",
+          "response_format",
+          "seed",
+          "stop",
+          "structured_outputs",
+          "temperature",
+          "top_p"
+        ],
+        "atlas-cloud/fp4": [
+          "include_reasoning",
+          "max_tokens",
+          "reasoning",
+          "reasoning_effort",
+          "response_format",
+          "seed",
+          "stop",
+          "structured_outputs",
+          "temperature",
+          "top_p"
+        ],
+        "baidu/fp8": [
+          "include_reasoning",
+          "max_tokens",
+          "reasoning",
+          "reasoning_effort",
+          "response_format",
+          "stop",
+          "structured_outputs",
+          "temperature",
+          "top_p"
+        ],
+        "baseten/fp8": [
+          "include_reasoning",
+          "max_tokens",
+          "reasoning",
+          "reasoning_effort",
+          "stop",
+          "temperature",
+          "top_p"
+        ],
+        "cloudflare": [
+          "include_reasoning",
+          "max_tokens",
+          "reasoning",
+          "reasoning_effort",
+          "response_format",
+          "seed",
+          "stop",
+          "structured_outputs",
+          "temperature",
+          "top_p"
+        ],
+        "cohere": [
+          "include_reasoning",
+          "max_tokens",
+          "reasoning",
+          "reasoning_effort",
+          "response_format",
+          "seed",
+          "stop",
+          "structured_outputs",
+          "temperature",
+          "top_p"
+        ],
+        "coreweave/fp8": [
+          "include_reasoning",
+          "max_tokens",
+          "reasoning",
+          "reasoning_effort",
+          "seed",
+          "stop",
+          "temperature",
+          "top_p"
+        ],
+        "deepinfra/fp8": [
+          "include_reasoning",
+          "max_tokens",
+          "reasoning",
+          "reasoning_effort",
+          "response_format",
+          "seed",
+          "stop",
+          "structured_outputs",
+          "temperature",
+          "top_p"
+        ],
+        "digitalocean": [
+          "include_reasoning",
+          "max_tokens",
+          "reasoning",
+          "reasoning_effort",
+          "response_format",
+          "structured_outputs",
+          "temperature",
+          "top_p"
+        ],
+        "fireworks": [
+          "include_reasoning",
+          "max_tokens",
+          "reasoning",
+          "reasoning_effort",
+          "response_format",
+          "stop",
+          "structured_outputs",
+          "temperature",
+          "top_p"
+        ],
+        "gmicloud/fp8": [
+          "include_reasoning",
+          "max_tokens",
+          "reasoning",
+          "reasoning_effort",
+          "response_format",
+          "seed",
+          "temperature",
+          "top_p"
+        ],
+        "inceptron/fp4": [
+          "include_reasoning",
+          "max_tokens",
+          "reasoning",
+          "reasoning_effort",
+          "response_format",
+          "seed",
+          "stop",
+          "structured_outputs",
+          "temperature",
+          "top_p"
+        ],
+        "makora": [
+          "include_reasoning",
+          "max_tokens",
+          "reasoning",
+          "reasoning_effort",
+          "response_format",
+          "seed",
+          "stop",
+          "structured_outputs",
+          "temperature",
+          "top_p"
+        ],
+        "mancer/fp8": [
+          "include_reasoning",
+          "max_tokens",
+          "reasoning",
+          "reasoning_effort",
+          "response_format",
+          "seed",
+          "stop",
+          "structured_outputs",
+          "temperature",
+          "top_p"
+        ],
+        "morph/bf16": [
+          "include_reasoning",
+          "max_tokens",
+          "reasoning",
+          "reasoning_effort",
+          "response_format",
+          "seed",
+          "stop",
+          "structured_outputs",
+          "temperature",
+          "top_p"
+        ],
+        "nebius/fp8": [
+          "include_reasoning",
+          "max_tokens",
+          "reasoning",
+          "reasoning_effort",
+          "response_format",
+          "seed",
+          "stop",
+          "structured_outputs",
+          "temperature",
+          "top_p"
+        ],
+        "nextbit/fp8": [
+          "include_reasoning",
+          "max_tokens",
+          "reasoning",
+          "reasoning_effort",
+          "response_format",
+          "seed",
+          "stop",
+          "structured_outputs",
+          "temperature",
+          "top_p"
+        ],
+        "novita/fp8": [
+          "include_reasoning",
+          "max_tokens",
+          "reasoning",
+          "reasoning_effort",
+          "response_format",
+          "seed",
+          "stop",
+          "temperature",
+          "top_p"
+        ],
+        "open-inference/fp8": [
+          "include_reasoning",
+          "max_tokens",
+          "reasoning",
+          "reasoning_effort",
+          "response_format",
+          "seed",
+          "stop",
+          "structured_outputs",
+          "temperature",
+          "top_p"
+        ],
+        "parasail/fp8": [
+          "include_reasoning",
+          "max_tokens",
+          "reasoning",
+          "reasoning_effort",
+          "response_format",
+          "seed",
+          "stop",
+          "structured_outputs",
+          "temperature",
+          "top_p"
+        ],
+        "phala": [
+          "include_reasoning",
+          "max_tokens",
+          "reasoning",
+          "reasoning_effort",
+          "response_format",
+          "seed",
+          "stop",
+          "structured_outputs",
+          "temperature",
+          "top_p"
+        ],
+        "reka": [
+          "include_reasoning",
+          "max_tokens",
+          "reasoning",
+          "reasoning_effort",
+          "response_format",
+          "stop",
+          "structured_outputs",
+          "temperature",
+          "top_p"
+        ],
+        "relace/fp4": [
+          "include_reasoning",
+          "max_tokens",
+          "reasoning",
+          "reasoning_effort",
+          "stop",
+          "temperature",
+          "top_p"
+        ],
+        "sail-research/fp4": [
+          "include_reasoning",
+          "max_tokens",
+          "reasoning",
+          "reasoning_effort",
+          "response_format",
+          "seed",
+          "stop",
+          "structured_outputs",
+          "temperature",
+          "top_p"
+        ],
+        "sail-research/us": [
+          "include_reasoning",
+          "max_tokens",
+          "reasoning",
+          "reasoning_effort",
+          "response_format",
+          "seed",
+          "stop",
+          "structured_outputs",
+          "temperature",
+          "top_p"
+        ],
+        "siliconflow/fp8": [
+          "include_reasoning",
+          "max_tokens",
+          "reasoning",
+          "reasoning_effort",
+          "response_format",
+          "structured_outputs",
+          "temperature",
+          "top_p"
+        ],
+        "streamlake/fp8": [
+          "include_reasoning",
+          "max_tokens",
+          "reasoning",
+          "reasoning_effort",
+          "response_format",
+          "stop",
+          "temperature",
+          "top_p"
+        ],
+        "together": [
+          "include_reasoning",
+          "max_tokens",
+          "reasoning",
+          "reasoning_effort",
+          "response_format",
+          "stop",
+          "structured_outputs",
+          "temperature",
+          "top_p"
+        ],
+        "venice": [
+          "include_reasoning",
+          "max_tokens",
+          "reasoning",
+          "reasoning_effort",
+          "response_format",
+          "stop",
+          "structured_outputs",
+          "temperature",
+          "top_p"
+        ],
+        "wafer/fast": [
+          "include_reasoning",
+          "max_tokens",
+          "reasoning",
+          "reasoning_effort",
+          "response_format",
+          "seed",
+          "stop",
+          "structured_outputs",
+          "temperature",
+          "top_p"
+        ]
+      },
+      "reasoning": {
+        "default_effort": "high",
+        "default_enabled": true,
+        "mandatory": false,
+        "supported_efforts": [
+          "max",
+          "high",
+          "low"
+        ]
+      },
+      "supported_parameters": [
+        "frequency_penalty",
+        "include_reasoning",
+        "logit_bias",
+        "logprobs",
+        "max_tokens",
+        "min_p",
+        "parallel_tool_calls",
+        "presence_penalty",
+        "reasoning",
+        "reasoning_effort",
+        "repetition_penalty",
+        "response_format",
+        "seed",
+        "stop",
+        "structured_outputs",
+        "temperature",
+        "tool_choice",
+        "tools",
+        "top_a",
+        "top_k",
+        "top_logprobs",
+        "top_p"
+      ]
+    },
+    "deepseek/deepseek-v4.1-flash": {
+      "endpoints": {
+        "alibaba": [
+          "include_reasoning",
+          "max_tokens",
+          "reasoning",
+          "reasoning_effort",
+          "response_format",
+          "seed",
+          "stop",
+          "temperature",
+          "top_p"
+        ],
+        "atlas-cloud/fp8": [
+          "include_reasoning",
+          "max_tokens",
+          "reasoning",
+          "reasoning_effort",
+          "response_format",
+          "seed",
+          "stop",
+          "structured_outputs",
+          "temperature",
+          "top_p"
+        ],
+        "baseten/fp8": [
+          "include_reasoning",
+          "max_tokens",
+          "reasoning",
+          "reasoning_effort",
+          "stop",
+          "temperature",
+          "top_p"
+        ],
+        "coreweave/fp8": [
+          "include_reasoning",
+          "max_tokens",
+          "reasoning",
+          "reasoning_effort",
+          "response_format",
+          "seed",
+          "stop",
+          "structured_outputs",
+          "temperature",
+          "top_p"
+        ],
+        "deepinfra/fp8": [
+          "include_reasoning",
+          "max_tokens",
+          "reasoning",
+          "reasoning_effort",
+          "response_format",
+          "seed",
+          "stop",
+          "structured_outputs",
+          "temperature",
+          "top_p"
+        ],
+        "deepseek": [
+          "include_reasoning",
+          "max_tokens",
+          "reasoning",
+          "reasoning_effort",
+          "response_format",
+          "stop",
+          "temperature",
+          "top_p"
+        ],
+        "dekallm": [
+          "include_reasoning",
+          "max_tokens",
+          "reasoning",
+          "reasoning_effort",
+          "response_format",
+          "seed",
+          "stop",
+          "structured_outputs",
+          "temperature",
+          "top_p"
+        ],
+        "digitalocean": [
+          "include_reasoning",
+          "max_tokens",
+          "reasoning",
+          "reasoning_effort",
+          "response_format",
+          "structured_outputs",
+          "temperature",
+          "top_p"
+        ],
+        "fireworks": [
+          "include_reasoning",
+          "max_tokens",
+          "reasoning",
+          "reasoning_effort",
+          "response_format",
+          "stop",
+          "structured_outputs",
+          "temperature",
+          "top_p"
+        ],
+        "gmicloud/fp8": [
+          "include_reasoning",
+          "max_tokens",
+          "reasoning",
+          "reasoning_effort",
+          "response_format",
+          "seed",
+          "temperature",
+          "top_p"
+        ],
+        "inference-net": [
+          "include_reasoning",
+          "max_tokens",
+          "reasoning",
+          "reasoning_effort",
+          "response_format",
+          "seed",
+          "stop",
+          "structured_outputs",
+          "temperature",
+          "top_p"
+        ],
+        "krea/fp8": [
+          "include_reasoning",
+          "max_tokens",
+          "reasoning",
+          "reasoning_effort",
+          "response_format",
+          "seed",
+          "stop",
+          "structured_outputs",
+          "temperature",
+          "top_p"
+        ],
+        "makora/fp8": [
+          "include_reasoning",
+          "max_tokens",
+          "reasoning",
+          "reasoning_effort",
+          "response_format",
+          "seed",
+          "stop",
+          "structured_outputs",
+          "temperature",
+          "top_p"
+        ],
+        "modal": [
+          "include_reasoning",
+          "max_tokens",
+          "reasoning",
+          "reasoning_effort",
+          "response_format",
+          "stop",
+          "structured_outputs",
+          "temperature",
+          "top_p"
+        ],
+        "morph/fp8": [
+          "include_reasoning",
+          "max_tokens",
+          "reasoning",
+          "reasoning_effort",
+          "response_format",
+          "seed",
+          "stop",
+          "structured_outputs",
+          "temperature",
+          "top_p"
+        ],
+        "nextbit/fp8": [
+          "include_reasoning",
+          "max_tokens",
+          "reasoning",
+          "reasoning_effort",
+          "response_format",
+          "seed",
+          "stop",
+          "structured_outputs",
+          "temperature",
+          "top_p"
+        ],
+        "novita/fp8": [
+          "include_reasoning",
+          "max_tokens",
+          "reasoning",
+          "reasoning_effort",
+          "response_format",
+          "seed",
+          "stop",
+          "temperature",
+          "top_p"
+        ],
+        "open-inference/fp4": [
+          "include_reasoning",
+          "max_tokens",
+          "reasoning",
+          "reasoning_effort",
+          "response_format",
+          "seed",
+          "stop",
+          "structured_outputs",
+          "temperature",
+          "top_p"
+        ],
+        "parasail/fp8": [
+          "include_reasoning",
+          "max_tokens",
+          "reasoning",
+          "reasoning_effort",
+          "response_format",
+          "seed",
+          "stop",
+          "structured_outputs",
+          "temperature",
+          "top_p"
+        ],
+        "phala": [
+          "include_reasoning",
+          "max_tokens",
+          "reasoning",
+          "reasoning_effort",
+          "response_format",
+          "seed",
+          "stop",
+          "temperature",
+          "top_p"
+        ],
+        "relace": [
+          "include_reasoning",
+          "max_tokens",
+          "reasoning",
+          "reasoning_effort",
+          "stop",
+          "temperature",
+          "top_p"
+        ],
+        "sail-research/fp4": [
+          "include_reasoning",
+          "max_tokens",
+          "reasoning",
+          "reasoning_effort",
+          "response_format",
+          "seed",
+          "stop",
+          "structured_outputs",
+          "temperature",
+          "top_p"
+        ],
+        "siliconflow/fp8": [
+          "include_reasoning",
+          "max_tokens",
+          "reasoning",
+          "reasoning_effort",
+          "response_format",
+          "temperature",
+          "top_p"
+        ],
+        "streamlake/fp8": [
+          "include_reasoning",
+          "max_tokens",
+          "reasoning",
+          "reasoning_effort",
+          "response_format",
+          "stop",
+          "temperature",
+          "top_p"
+        ],
+        "together": [
+          "include_reasoning",
+          "max_tokens",
+          "reasoning",
+          "reasoning_effort",
+          "response_format",
+          "stop",
+          "structured_outputs",
+          "temperature",
+          "top_p"
+        ],
+        "venice/fp8": [
+          "include_reasoning",
+          "max_tokens",
+          "reasoning",
+          "reasoning_effort",
+          "response_format",
+          "stop",
+          "structured_outputs",
+          "temperature",
+          "top_p"
+        ],
+        "wafer": [
+          "include_reasoning",
+          "max_tokens",
+          "reasoning",
+          "reasoning_effort",
+          "response_format",
+          "seed",
+          "stop",
+          "structured_outputs",
+          "temperature",
+          "top_p"
+        ]
+      },
+      "reasoning": {
+        "default_effort": "high",
+        "default_enabled": true,
+        "mandatory": false,
+        "supported_efforts": [
+          "max",
+          "high",
+          "low"
+        ]
+      },
+      "supported_parameters": [
+        "frequency_penalty",
+        "include_reasoning",
+        "logit_bias",
+        "logprobs",
+        "max_tokens",
+        "min_p",
+        "presence_penalty",
+        "reasoning",
+        "reasoning_effort",
+        "repetition_penalty",
+        "response_format",
+        "seed",
+        "stop",
+        "structured_outputs",
+        "temperature",
+        "tool_choice",
+        "tools",
+        "top_k",
+        "top_logprobs",
+        "top_p"
+      ]
+    },
+    "qwen/qwen3-235b-a22b-2507": {
+      "endpoints": {
+        "alibaba": [
+          "max_tokens",
+          "response_format",
+          "seed",
+          "stop",
+          "temperature",
+          "top_p"
+        ],
+        "deepinfra/fp8": [
+          "max_tokens",
+          "response_format",
+          "seed",
+          "stop",
+          "structured_outputs",
+          "temperature",
+          "top_p"
+        ],
+        "gmicloud/fp8": [
+          "max_tokens",
+          "response_format",
+          "seed",
+          "structured_outputs",
+          "temperature",
+          "top_p"
+        ],
+        "google-vertex/us-south1": [
+          "max_tokens",
+          "response_format",
+          "seed",
+          "temperature",
+          "top_p"
+        ],
+        "nebius/fp8": [
+          "max_tokens",
+          "response_format",
+          "seed",
+          "stop",
+          "structured_outputs",
+          "temperature",
+          "top_p"
+        ],
+        "novita/fp8": [
+          "max_tokens",
+          "response_format",
+          "seed",
+          "stop",
+          "structured_outputs",
+          "temperature",
+          "top_p"
+        ],
+        "parasail/fp8": [
+          "max_tokens",
+          "response_format",
+          "seed",
+          "stop",
+          "structured_outputs",
+          "temperature",
+          "top_p"
+        ],
+        "streamlake": [
+          "max_tokens",
+          "response_format",
+          "stop",
+          "structured_outputs",
+          "temperature",
+          "top_p"
+        ],
+        "venice/fp8": [
+          "max_tokens",
+          "response_format",
+          "stop",
+          "structured_outputs",
+          "temperature",
+          "top_p"
+        ]
+      },
+      "reasoning": null,
+      "supported_parameters": [
+        "frequency_penalty",
+        "logit_bias",
+        "logprobs",
+        "max_tokens",
+        "min_p",
+        "presence_penalty",
+        "repetition_penalty",
+        "response_format",
+        "seed",
+        "stop",
+        "structured_outputs",
+        "temperature",
+        "tool_choice",
+        "tools",
+        "top_k",
+        "top_logprobs",
+        "top_p"
+      ]
+    },
+    "qwen/qwen3-30b-a3b-instruct-2507": {
+      "endpoints": {
+        "alibaba": [
+          "max_tokens",
+          "response_format",
+          "seed",
+          "stop",
+          "temperature",
+          "top_p"
+        ],
+        "dekallm": [
+          "max_tokens",
+          "response_format",
+          "seed",
+          "stop",
+          "structured_outputs",
+          "temperature",
+          "top_p"
+        ],
+        "nebius/fp8": [
+          "max_tokens",
+          "response_format",
+          "seed",
+          "stop",
+          "structured_outputs",
+          "temperature",
+          "top_p"
+        ],
+        "siliconflow/fp8": [
+          "max_tokens",
+          "response_format",
+          "structured_outputs",
+          "temperature",
+          "top_p"
+        ],
+        "streamlake": [
+          "max_tokens",
+          "response_format",
+          "stop",
+          "structured_outputs",
+          "temperature",
+          "top_p"
+        ]
+      },
+      "reasoning": null,
+      "supported_parameters": [
+        "frequency_penalty",
+        "logit_bias",
+        "logprobs",
+        "max_tokens",
+        "presence_penalty",
+        "repetition_penalty",
+        "response_format",
+        "seed",
+        "stop",
+        "structured_outputs",
+        "temperature",
+        "tool_choice",
+        "tools",
+        "top_k",
+        "top_logprobs",
+        "top_p"
+      ]
+    },
+    "qwen/qwen3-next-80b-a3b-instruct": {
+      "endpoints": {
+        "alibaba": [
+          "max_tokens",
+          "response_format",
+          "seed",
+          "stop",
+          "temperature",
+          "top_p"
+        ],
+        "deepinfra/fp8": [
+          "max_tokens",
+          "response_format",
+          "seed",
+          "stop",
+          "structured_outputs",
+          "temperature",
+          "top_p"
+        ],
+        "google-vertex/global": [
+          "max_tokens",
+          "response_format",
+          "seed",
+          "stop",
+          "structured_outputs",
+          "temperature",
+          "top_p"
+        ],
+        "novita/bf16": [
+          "max_tokens",
+          "response_format",
+          "seed",
+          "stop",
+          "temperature",
+          "top_p"
+        ],
+        "parasail/fp8": [
+          "max_tokens",
+          "response_format",
+          "seed",
+          "stop",
+          "structured_outputs",
+          "temperature",
+          "top_p"
+        ]
+      },
+      "reasoning": null,
+      "supported_parameters": [
+        "frequency_penalty",
+        "logit_bias",
+        "logprobs",
+        "max_tokens",
+        "min_p",
+        "presence_penalty",
+        "repetition_penalty",
+        "response_format",
+        "seed",
+        "stop",
+        "structured_outputs",
+        "temperature",
+        "tool_choice",
+        "tools",
+        "top_k",
+        "top_logprobs",
+        "top_p"
+      ]
+    },
+    "qwen/qwen3.7-flash": {
+      "endpoints": {
+        "alibaba": [
+          "include_reasoning",
+          "max_tokens",
+          "reasoning",
+          "response_format",
+          "seed",
+          "temperature",
+          "top_p"
+        ]
+      },
+      "reasoning": {
+        "default_enabled": true,
+        "mandatory": false,
+        "supports_max_tokens": true
+      },
+      "supported_parameters": [
+        "include_reasoning",
+        "logprobs",
+        "max_tokens",
+        "presence_penalty",
+        "reasoning",
+        "response_format",
+        "seed",
+        "temperature",
+        "tool_choice",
+        "tools",
+        "top_logprobs",
+        "top_p"
+      ]
+    }
+  },
+  "date": "2026-09-26",
+  "models": {
+    "deepseek/deepseek-v4-flash": {
+      "default": {
+        "completion": 9.408e-08,
+        "prompt": 4.704e-08,
+        "request": 0.0
+      },
+      "providers": {
+        "alibaba/fp8": {
+          "completion": 2.68e-07,
+          "prompt": 1.34e-07,
+          "request": 0.0
+        },
+        "atlas-cloud/fp4": {
+          "completion": 2.8e-07,
+          "prompt": 1.4e-07,
+          "request": 0.0
+        },
+        "azure/us": {
+          "completion": 5.6e-07,
+          "prompt": 2.1e-07,
+          "request": 0.0
+        },
+        "baidu/fp8": {
+          "completion": 9.38e-08,
+          "prompt": 4.69e-08,
+          "request": 0.0
+        },
+        "deepinfra/fp8": {
+          "completion": 1.8e-07,
+          "prompt": 9e-08,
+          "request": 0.0
+        },
+        "digitalocean": {
+          "completion": 1.96e-07,
+          "prompt": 9.8e-08,
+          "request": 0.0
+        },
+        "gmicloud/fp8": {
+          "completion": 1.82e-07,
+          "prompt": 9.1e-08,
+          "request": 0.0
+        },
+        "mancer/fp8": {
+          "completion": 5e-07,
+          "prompt": 1.9e-07,
+          "request": 0.0
+        },
+        "nextbit/fp8": {
+          "completion": 3e-07,
+          "prompt": 1.5e-07,
+          "request": 0.0
+        },
+        "novita/fp8": {
+          "completion": 2.8e-07,
+          "prompt": 1.4e-07,
+          "request": 0.0
+        },
+        "open-inference/fp8": {
+          "completion": 5e-07,
+          "prompt": 4e-08,
+          "request": 0.0
+        },
+        "parasail/fp8": {
+          "completion": 2.8e-07,
+          "prompt": 1.4e-07,
+          "request": 0.0
+        },
+        "relace/fp4": {
+          "completion": 1.28e-06,
+          "prompt": 3e-08,
+          "request": 0.0
+        },
+        "siliconflow/fp8": {
+          "completion": 2.8e-07,
+          "prompt": 1.3e-07,
+          "request": 0.0
+        },
+        "streamlake/fp8": {
+          "completion": 9.408e-08,
+          "prompt": 4.704e-08,
+          "request": 0.0
+        },
+        "venice": {
+          "completion": 1.925e-07,
+          "prompt": 9.66e-08,
+          "request": 0.0
+        }
+      }
+    },
+    "deepseek/deepseek-v4-flash-0731": {
+      "default": {
+        "completion": 3.2e-07,
+        "prompt": 2.1e-08,
+        "request": 0.0
+      },
+      "providers": {
+        "alibaba": {
+          "completion": 1.056e-06,
+          "prompt": 3.52e-07,
+          "request": 0.0
+        },
+        "atlas-cloud/fp4": {
+          "completion": 1.32e-06,
+          "prompt": 4.4e-07,
+          "request": 0.0
+        },
+        "baidu/fp8": {
+          "completion": 3.894e-07,
+          "prompt": 1.298e-07,
+          "request": 0.0
+        },
+        "baseten/fp8": {
+          "completion": 2.6e-07,
+          "prompt": 1.3e-07,
+          "request": 0.0
+        },
+        "cloudflare": {
+          "completion": 1.32e-06,
+          "prompt": 4.4e-07,
+          "request": 0.0
+        },
+        "cohere": {
+          "completion": 2.8e-07,
+          "prompt": 1.4e-07,
+          "request": 0.0
+        },
+        "coreweave/fp8": {
+          "completion": 2.8e-07,
+          "prompt": 1.3e-07,
+          "request": 0.0
+        },
+        "deepinfra/fp8": {
+          "completion": 1.8e-07,
+          "prompt": 6e-08,
+          "request": 0.0
+        },
+        "digitalocean": {
+          "completion": 2.38e-07,
+          "prompt": 1.19e-07,
+          "request": 0.0
+        },
+        "fireworks": {
+          "completion": 6.6e-07,
+          "prompt": 2.2e-07,
+          "request": 0.0
+        },
+        "gmicloud/fp8": {
+          "completion": 8.58e-07,
+          "prompt": 2.86e-07,
+          "request": 0.0
+        },
+        "inceptron/fp4": {
+          "completion": 2.712e-07,
+          "prompt": 3.9e-08,
+          "request": 0.0
+        },
+        "makora": {
+          "completion": 1.95e-07,
+          "prompt": 9e-08,
+          "request": 0.0
+        },
+        "mancer/fp8": {
+          "completion": 6e-07,
+          "prompt": 2e-07,
+          "request": 0.0
+        },
+        "morph/bf16": {
+          "completion": 3.99625e-07,
+          "prompt": 1.41953e-07,
+          "request": 0.0
+        },
+        "nebius/fp8": {
+          "completion": 2.8e-07,
+          "prompt": 1.4e-07,
+          "request": 0.0
+        },
+        "nextbit/fp8": {
+          "completion": 1.056e-06,
+          "prompt": 3.52e-07,
+          "request": 0.0
+        },
+        "novita/fp8": {
+          "completion": 1.2276e-06,
+          "prompt": 4.092e-07,
+          "request": 0.0
+        },
+        "open-inference/fp8": {
+          "completion": 4e-07,
+          "prompt": 3e-08,
+          "request": 0.0
+        },
+        "parasail/fp8": {
+          "completion": 2.8e-07,
+          "prompt": 1.4e-07,
+          "request": 0.0
+        },
+        "phala": {
+          "completion": 9.24e-07,
+          "prompt": 3.08e-07,
+          "request": 0.0
+        },
+        "reka": {
+          "completion": 5.28e-07,
+          "prompt": 8.8e-08,
+          "request": 0.0
+        },
+        "relace/fp4": {
+          "completion": 3.2e-07,
+          "prompt": 2.1e-08,
+          "request": 0.0
+        },
+        "sail-research/fp4": {
+          "completion": 3e-07,
+          "prompt": 2.15e-08,
+          "request": 0.0
+        },
+        "sail-research/us": {
+          "completion": 4.2e-07,
+          "prompt": 2.25e-08,
+          "request": 0.0
+        },
+        "siliconflow/fp8": {
+          "completion": 6.6e-07,
+          "prompt": 2.2e-07,
+          "request": 0.0
+        },
+        "streamlake/fp8": {
+          "completion": 1.32e-07,
+          "prompt": 4.4e-08,
+          "request": 0.0
+        },
+        "together": {
+          "completion": 2.8e-07,
+          "prompt": 1.4e-07,
+          "request": 0.0
+        },
+        "venice": {
+          "completion": 3.5e-07,
+          "prompt": 1.75e-07,
+          "request": 0.0
+        },
+        "wafer/fast": {
+          "completion": 3.5e-07,
+          "prompt": 8e-08,
+          "request": 0.0
+        }
+      }
+    },
+    "deepseek/deepseek-v4.1-flash": {
+      "default": {
+        "completion": 1.2e-06,
+        "prompt": 3e-07,
+        "request": 0.0
+      },
+      "providers": {
+        "alibaba": {
+          "completion": 1.2e-06,
+          "prompt": 3e-07,
+          "request": 0.0
+        },
+        "atlas-cloud/fp8": {
+          "completion": 1.2e-06,
+          "prompt": 3e-07,
+          "request": 0.0
+        },
+        "baseten/fp8": {
+          "completion": 1.2e-06,
+          "prompt": 3e-07,
+          "request": 0.0
+        },
+        "coreweave/fp8": {
+          "completion": 6.5e-07,
+          "prompt": 2e-07,
+          "request": 0.0
+        },
+        "deepinfra/fp8": {
+          "completion": 4.2e-07,
+          "prompt": 1.4e-07,
+          "request": 0.0
+        },
+        "deepseek": {
+          "completion": 6e-07,
+          "prompt": 1.5e-07,
+          "request": 0.0
+        },
+        "dekallm": {
+          "completion": 6e-07,
+          "prompt": 1.5e-07,
+          "request": 0.0
+        },
+        "digitalocean": {
+          "completion": 1.2e-06,
+          "prompt": 3e-07,
+          "request": 0.0
+        },
+        "fireworks": {
+          "completion": 6.6e-07,
+          "prompt": 2.2e-07,
+          "request": 0.0
+        },
+        "gmicloud/fp8": {
+          "completion": 7.2e-07,
+          "prompt": 1.8e-07,
+          "request": 0.0
+        },
+        "inference-net": {
+          "completion": 2.9e-07,
+          "prompt": 3.5e-08,
+          "request": 0.0
+        },
+        "krea/fp8": {
+          "completion": 9e-07,
+          "prompt": 2.25e-07,
+          "request": 0.0
+        },
+        "makora/fp8": {
+          "completion": 1.2e-06,
+          "prompt": 3e-07,
+          "request": 0.0
+        },
+        "modal": {
+          "completion": 1.2e-06,
+          "prompt": 3e-07,
+          "request": 0.0
+        },
+        "morph/fp8": {
+          "completion": 3.1674e-07,
+          "prompt": 7.9185e-08,
+          "request": 0.0
+        },
+        "nextbit/fp8": {
+          "completion": 8.4e-07,
+          "prompt": 2.1e-07,
+          "request": 0.0
+        },
+        "novita/fp8": {
+          "completion": 1.14e-06,
+          "prompt": 2.85e-07,
+          "request": 0.0
+        },
+        "open-inference/fp4": {
+          "completion": 4e-07,
+          "prompt": 8e-08,
+          "request": 0.0
+        },
+        "parasail/fp8": {
+          "completion": 1.2e-06,
+          "prompt": 3e-07,
+          "request": 0.0
+        },
+        "phala": {
+          "completion": 1.104e-06,
+          "prompt": 2.76e-07,
+          "request": 0.0
+        },
+        "relace": {
+          "completion": 4.5e-07,
+          "prompt": 9e-08,
+          "request": 0.0
+        },
+        "sail-research/fp4": {
+          "completion": 7.5e-07,
+          "prompt": 1.3e-07,
+          "request": 0.0
+        },
+        "siliconflow/fp8": {
+          "completion": 1.2e-06,
+          "prompt": 3e-07,
+          "request": 0.0
+        },
+        "streamlake/fp8": {
+          "completion": 6.6e-07,
+          "prompt": 1.65e-07,
+          "request": 0.0
+        },
+        "together": {
+          "completion": 1.2e-06,
+          "prompt": 3e-07,
+          "request": 0.0
+        },
+        "venice/fp8": {
+          "completion": 1.5e-06,
+          "prompt": 3.75e-07,
+          "request": 0.0
+        },
+        "wafer": {
+          "completion": 6e-07,
+          "prompt": 9.9e-08,
+          "request": 0.0
+        }
+      }
+    },
+    "qwen/qwen3-235b-a22b-2507": {
+      "default": {
+        "completion": 3.5e-07,
+        "prompt": 8.75e-08,
+        "request": 0.0
+      },
+      "providers": {
+        "alibaba": {
+          "completion": 5.98e-07,
+          "prompt": 1.495e-07,
+          "request": 0.0
+        },
+        "deepinfra/fp8": {
+          "completion": 5.5e-07,
+          "prompt": 9e-08,
+          "request": 0.0
+        },
+        "gmicloud/fp8": {
+          "completion": 3.5e-07,
+          "prompt": 8.75e-08,
+          "request": 0.0
+        },
+        "google-vertex/us-south1": {
+          "completion": 1e-06,
+          "prompt": 2.5e-07,
+          "request": 0.0
+        },
+        "nebius/fp8": {
+          "completion": 6e-07,
+          "prompt": 2e-07,
+          "request": 0.0
+        },
+        "novita/fp8": {
+          "completion": 5.8e-07,
+          "prompt": 9e-08,
+          "request": 0.0
+        },
+        "parasail/fp8": {
+          "completion": 8e-07,
+          "prompt": 1.4e-07,
+          "request": 0.0
+        },
+        "streamlake": {
+          "completion": 8.4e-07,
+          "prompt": 2.1e-07,
+          "request": 0.0
+        },
+        "venice/fp8": {
+          "completion": 7.5e-07,
+          "prompt": 1.5e-07,
+          "request": 0.0
+        }
+      }
+    },
+    "qwen/qwen3-30b-a3b-instruct-2507": {
+      "default": {
+        "completion": 3e-07,
+        "prompt": 1e-07,
+        "request": 0.0
+      },
+      "providers": {
+        "alibaba": {
+          "completion": 5.2e-07,
+          "prompt": 1.3e-07,
+          "request": 0.0
+        },
+        "dekallm": {
+          "completion": 3e-07,
+          "prompt": 9e-08,
+          "request": 0.0
+        },
+        "nebius/fp8": {
+          "completion": 3e-07,
+          "prompt": 1e-07,
+          "request": 0.0
+        },
+        "siliconflow/fp8": {
+          "completion": 3e-07,
+          "prompt": 9e-08,
+          "request": 0.0
+        },
+        "streamlake": {
+          "completion": 1.9305e-07,
+          "prompt": 4.815e-08,
+          "request": 0.0
+        }
+      }
+    },
+    "qwen/qwen3-next-80b-a3b-instruct": {
+      "default": {
+        "completion": 1.1e-06,
+        "prompt": 1e-07,
+        "request": 0.0
+      },
+      "providers": {
+        "alibaba": {
+          "completion": 7.8e-07,
+          "prompt": 9.75e-08,
+          "request": 0.0
+        },
+        "deepinfra/fp8": {
+          "completion": 1.1e-06,
+          "prompt": 9e-08,
+          "request": 0.0
+        },
+        "google-vertex/global": {
+          "completion": 1.2e-06,
+          "prompt": 1.5e-07,
+          "request": 0.0
+        },
+        "novita/bf16": {
+          "completion": 1.5e-06,
+          "prompt": 1.5e-07,
+          "request": 0.0
+        },
+        "parasail/fp8": {
+          "completion": 1.1e-06,
+          "prompt": 1e-07,
+          "request": 0.0
+        }
+      }
+    },
+    "qwen/qwen3.7-flash": {
+      "default": {
+        "completion": 1.3e-07,
+        "prompt": 3e-08,
+        "request": 0.0
+      },
+      "providers": {
+        "alibaba": {
+          "completion": 1.3e-07,
+          "prompt": 3e-08,
+          "request": 0.0
+        }
+      }
+    }
+  },
+  "source": "https://openrouter.ai/api/v1/models"
+}
