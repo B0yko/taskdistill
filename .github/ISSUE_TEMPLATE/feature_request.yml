@@ -1,0 +1,21 @@
+name: Feature request
+description: Suggest an improvement to the pipeline, the evaluation or the cascade server
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What are you trying to do with your own LLM call, and where does taskdistill get in the way?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposal
+      description: What should change? If it affects the evaluation, say how you would measure it.
+  - type: textarea
+    id: scope
+    attributes:
+      label: Scope
+      description: The README lists what v0.1 deliberately leaves out (streamed capture, multi-turn tasks, constrained JSON decoding, drift alerts...). Say if your request is one of those.

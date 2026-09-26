@@ -1,0 +1,37 @@
+name: Bug report
+description: Something in taskdistill does not work as documented
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: The command you ran, what you expected and what you got instead.
+    validations:
+      required: true
+  - type: textarea
+    id: output
+    attributes:
+      label: Output
+      description: The relevant terminal output and, if possible, the JSON file the command wrote. Remove API keys, tokens and private data first.
+      render: text
+  - type: input
+    id: version
+    attributes:
+      label: taskdistill version
+      placeholder: taskdistill --version
+    validations:
+      required: true
+  - type: input
+    id: platform
+    attributes:
+      label: Platform
+      description: Hardware and OS, e.g. "Apple M2 Pro, macOS 15.3" or "Ubuntu 24.04, CPU only". Say which backend you used (mlx or torch).
+    validations:
+      required: true
+  - type: checkboxes
+    id: replay
+    attributes:
+      label: Reproduction
+      options:
+        - label: The problem also happens in replay mode (no API key set), e.g. with `taskdistill demo banking77`.
