@@ -617,7 +617,7 @@ def test_quick_subsets_are_fixed_balanced_subsets_of_the_full_splits(docs: list[
             assert int(d.id.rsplit("-", 1)[1]) < per_template[d.template]
         assert quick_subset(generate(), split) == subset
     test_counts = Counter(d.template for d in quick_subset(docs, "test"))
-    assert test_counts == {t: 6 for t in SPLIT_TEMPLATES["test"]}
+    assert test_counts == dict.fromkeys(SPLIT_TEMPLATES["test"], 6)
     assert set(Counter(d.template for d in quick_subset(docs, "train")).values()) == {6}
     assert set(Counter(d.template for d in quick_subset(docs, "valid")).values()) == {6}
 

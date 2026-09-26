@@ -8,7 +8,7 @@ input:                          # how the task input is found in each request
 teacher:                        # the API model whose calls are distilled
   base_url: ${TASKDISTILL_TEACHER_BASE_URL:-https://openrouter.ai/api/v1}  # any OpenAI-compatible endpoint
   api_key_env: TASKDISTILL_TEACHER_API_KEY   # falls back to OPENROUTER_API_KEY
-  model: ${TASKDISTILL_TEACHER_MODEL:-openai/gpt-4o-mini}  # the slug your application calls today
+  model: ${TASKDISTILL_TEACHER_MODEL:-deepseek/deepseek-v4-flash-0731}  # the slug your application calls today; check its terms allow training on outputs
   prompt_file: teacher_prompt.md  # system prompt sent to the teacher, verbatim
   temperature: 0                # keep 0 so outputs are reproducible
   max_tokens: 256               # room for the whole JSON object
@@ -28,6 +28,7 @@ train:                          # LoRA fine-tuning
   epochs: 2                     # passes over the training split
   max_seq_len: 1024             # longer examples are dropped, never truncated
   seed: 13                      # training seed
+  lr_schedule: warmup_cosine    # warmup_cosine (linear warm-up, cosine decay) | constant
 curate:                         # captured traffic -> train/valid/test
   dedupe:                       # applied inside each split, then across splits
     exact: true                 # exact match on the normalised input

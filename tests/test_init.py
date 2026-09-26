@@ -85,7 +85,7 @@ def test_init_classification(tmp_path: Path) -> None:
     assert spec.labels == TEMPLATE_LABELS
     assert spec.teacher.base_url == "https://openrouter.ai/api/v1"
     assert spec.teacher.api_key_env == "TASKDISTILL_TEACHER_API_KEY"
-    assert spec.teacher.model == "openai/gpt-4o-mini"
+    assert spec.teacher.model == "deepseek/deepseek-v4.1-flash"
     assert (spec.teacher.temperature, spec.teacher.max_tokens, spec.teacher.response_format) == (0.0, 24, None)
     assert spec.teacher.extra_body == {}
     assert spec.teacher.provider is None
@@ -186,7 +186,7 @@ def test_other_template_text_is_copied_verbatim(tmp_path: Path) -> None:
 def test_env_references_are_kept_in_the_file(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     directory = init_task("support", "classification", dest_root=tmp_path)
     text = (directory / "task.yaml").read_text(encoding="utf-8")
-    assert "model: ${TASKDISTILL_TEACHER_MODEL:-openai/gpt-4o-mini}" in text
+    assert "model: ${TASKDISTILL_TEACHER_MODEL:-deepseek/deepseek-v4.1-flash}" in text
     assert "base_url: ${TASKDISTILL_TEACHER_BASE_URL:-https://openrouter.ai/api/v1}" in text
 
     monkeypatch.setenv("TASKDISTILL_TEACHER_MODEL", "vendor/other-model")
