@@ -8,12 +8,12 @@ input:
 teacher:
   base_url: ${TASKDISTILL_TEACHER_BASE_URL:-https://openrouter.ai/api/v1}
   api_key_env: TASKDISTILL_TEACHER_API_KEY   # falls back to OPENROUTER_API_KEY
-  model: ${TASKDISTILL_TEACHER_MODEL:-deepseek/deepseek-v4-flash-0731}
+  model: ${TASKDISTILL_TEACHER_MODEL:-deepseek/deepseek-v4.1-flash}
   prompt_file: teacher_prompt.md
   temperature: 0
   max_tokens: 24
   response_format: null
-  extra_body: {provider: {order: [deepinfra/fp8], allow_fallbacks: false}, reasoning: {enabled: false}}
+  extra_body: {provider: {order: [deepinfra/fp8], allow_fallbacks: false, require_parameters: true, data_collection: deny}, reasoning: {enabled: false}}
 student:
   base_model: mlx-community/Qwen2.5-0.5B-Instruct-4bit   # set by this task's base-model decision
   system_prompt: "Classify the customer's banking message into exactly one intent label."
