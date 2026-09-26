@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "order_id": {
+      "type": "string",
+      "description": "The order number exactly as written in the message."
+    },
+    "order_date": {
+      "type": "string",
+      "format": "date",
+      "description": "The date the order was placed, as YYYY-MM-DD."
+    },
+    "total_amount": {
+      "type": ["number", "null"],
+      "description": "The order total without a currency symbol, or null if the message does not state it."
+    }
+  },
+  "required": ["order_id", "order_date", "total_amount"],
+  "additionalProperties": false
+}

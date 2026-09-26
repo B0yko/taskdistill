@@ -20,6 +20,10 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_valida
 
 ENV_PATTERN = re.compile(r"\$\{([A-Za-z_][A-Za-z0-9_]*)(?::-([^}]*))?\}")
 PII_KINDS = ("email", "phone", "iban", "card", "ipv4", "ssn")
+PiiKind = Literal["email", "phone", "iban", "card", "ipv4", "ssn"]
+_DEFAULT_PII_KINDS: tuple[PiiKind, ...] = ("email", "phone", "iban", "card", "ipv4", "ssn")
+#: Attributes filled from the files a spec points to; the YAML may not set them.
+LOADED_FIELDS = ("labels", "json_schema", "teacher_prompt", "source")
 
 
 class ConfigError(ValueError):
@@ -136,14 +140,12 @@ class TrainSpec(_Strict):
 
 class DedupeSpec(_Strict):
     exact: bool = True
-    near_dup_jaccard: float = Field(default=0.9, gt=0, le=1)
+    near_dup_jaccard: float = Field(default=0.9, ge=0.5, le=1)
 
 
 class PiiSpec(_Strict):
     enabled: bool = True
-    kinds: list[Literal["email", "phone", "iban", "card", "ipv4", "ssn"]] = Field(
-        default_factory=lambda: list(PII_KINDS)
-    )
+    kinds: list[PiiKind] = Field(default_factory=lambda: list(_DEFAULT_PII_KINDS))
 
 
 class SplitSpec(_Strict):
@@ -308,6 +310,9 @@ def load_task(task: str) -> TaskSpec:
         raise ConfigError(f"{source}: invalid YAML: {exc}") from exc
     if not isinstance(raw, dict):
         raise ConfigError(f"{source}: expected a mapping at the top level")
+    for key in LOADED_FIELDS:
+        if key in raw:
+            raise ConfigError(f"{source}: {key}: Extra inputs are not permitted (filled from the files the spec names)")
     raw = expand_env(raw)
     try:
         spec = TaskSpec.model_validate(raw)
@@ -329,6 +334,16 @@ def load_task(task: str) -> TaskSpec:
             raise ConfigError(f"{source}: labels_file: need at least 2 labels")
         if len(set(labels)) != len(labels):
             raise ConfigError(f"{source}: labels_file: duplicate labels")
+        from taskdistill.tasks.classification import label_key
+
+        seen: dict[str, str] = {}
+        for label in labels:
+            other = seen.setdefault(label_key(label), label)
+            if other != label:
+                raise ConfigError(
+                    f"{source}: labels_file: labels {other!r} and {label!r} normalise to the same key; "
+                    "teacher outputs could not be told apart"
+                )
         spec.labels = labels
     else:
         assert spec.schema_file is not None
@@ -336,7 +351,11 @@ def load_task(task: str) -> TaskSpec:
             schema = json.loads(read(spec.schema_file, "schema_file"))
         except json.JSONDecodeError as exc:
             raise ConfigError(f"{source}: schema_file: invalid JSON: {exc}") from exc
-        if schema.get("type") != "object" or not isinstance(schema.get("properties"), dict):
+        if (
+            not isinstance(schema, dict)
+            or schema.get("type") != "object"
+            or not isinstance(schema.get("properties"), dict)
+        ):
             raise ConfigError(f"{source}: schema_file: must be a JSON Schema with type object and properties")
         spec.json_schema = schema
     return spec
