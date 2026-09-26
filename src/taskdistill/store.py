@@ -198,7 +198,9 @@ class Store:
                 (task,),
             ).fetchall()
         for r in rows:
-            yield CaptureRow(*r[:13], captured=bool(r[13]), error=r[14])
+            values = list(r)
+            values[13] = bool(values[13])
+            yield CaptureRow(*values)
 
     def count_captures(self, task: str) -> dict[str, int]:
         with self._connect() as conn:
@@ -206,6 +208,25 @@ class Store:
                 "SELECT COUNT(*), COALESCE(SUM(captured), 0) FROM captures WHERE task = ?", (task,)
             ).fetchone()
         return {"total": int(total), "captured": int(captured), "not_captured": int(total) - int(captured)}
+
+    def add_captures(self, task: str, rows: list[dict[str, Any]]) -> int:
+        """Insert many captures in one transaction; each row holds ``add_capture``'s keyword arguments."""
+        now = time.time()
+        cols = (
+            "request_key", "request_body", "response_body", "status", "latency_ms", "prompt_tokens",
+            "completion_tokens", "cost_usd", "upstream_model",
+        )  # fmt: skip
+        values = [
+            (task, now, r["source"], *(r.get(c) for c in cols), int(r.get("captured", True)), r.get("error"))
+            for r in rows
+        ]
+        with self._lock, self._connect() as conn:
+            conn.executemany(
+                "INSERT INTO captures (task, ts, source, " + ", ".join(cols) + ", captured, error) "
+                "VALUES (" + ", ".join("?" for _ in range(len(cols) + 5)) + ")",
+                values,
+            )
+        return len(values)
 
     # imports ------------------------------------------------------------------------------------
     def add_imports(self, task: str, fmt: str, rows: list[dict[str, Any]]) -> int:
