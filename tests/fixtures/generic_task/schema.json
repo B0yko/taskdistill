@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "ticket_id": {
+      "type": "string",
+      "description": "The ticket reference exactly as written, e.g. ST-4821."
+    },
+    "product": {
+      "type": "string",
+      "enum": ["router", "thermostat", "doorbell", "speaker", "camera"],
+      "description": "The device the ticket is about."
+    },
+    "severity": {
+      "type": "string",
+      "enum": ["low", "medium", "high"],
+      "description": "high: the device is unusable, unsafe or the customer asks for urgency; medium: it works with problems; low: questions, cosmetic issues and returns."
+    },
+    "refund_amount": {
+      "type": ["number", "null"],
+      "description": "The refund the customer asks for, as a plain number, or null if none is requested."
+    }
+  },
+  "required": ["ticket_id", "product", "severity", "refund_amount"],
+  "additionalProperties": false
+}
