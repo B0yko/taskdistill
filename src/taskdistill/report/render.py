@@ -458,6 +458,13 @@ def _cost_latency(report: Mapping[str, Any]) -> list[str]:
         "escalated requests.",
         "",
     ]
+    teacher_list, cascade_list = teacher.get("list_price_usd_per_1k"), cascade.get("list_price_usd_per_1k")
+    if teacher_list is not None and cascade_list is not None:
+        lines += [
+            f"At the list price without the provider's prompt cache (the same token counts), the teacher costs "
+            f"{usd(teacher_list)} and the cascade {usd(cascade_list)} per 1k requests.",
+            "",
+        ]
     return lines
 
 
@@ -495,6 +502,12 @@ def _break_even(report: Mapping[str, Any]) -> list[str]:
         lines.append(f"**{bound}{integer(be['volume'])} requests** = ({labelling} + {training}) / {savings}.")
     else:
         lines.append(f"Not reached: {be.get('reason')}. ({labelling}; {training}; {savings}.)")
+    list_price = be.get("list_price") or {}
+    if list_price.get("volume") is not None:
+        lines.append(
+            f"At the list price without prompt caching: {integer(list_price['volume'])} requests "
+            f"(savings {usd(list_price.get('savings_usd_per_request'))} per request; labelling cost as paid)."
+        )
     for note in be.get("notes") or []:
         lines.append(f"Note: {note}.")
     lines += ["", f"Assumptions: {be.get('assumptions')}.", ""]

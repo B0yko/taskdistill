@@ -680,6 +680,7 @@ class TeacherRecord:
     latency_ms: float | None
     source: str
     created: float | None = None
+    list_usd: float | None = None  # the same token counts at the snapshot's list price, without provider caching
 
 
 class TeacherRecords:
@@ -717,6 +718,14 @@ class TeacherRecords:
             self.cost_sources["pricing snapshot"] += 1
         return priced
 
+    def _list_cost(self, usage: Mapping[str, Any]) -> float | None:
+        if self.price is None:
+            return None
+        prompt, completion = _num(usage.get("prompt_tokens")), _num(usage.get("completion_tokens"))
+        if prompt is None or completion is None:
+            return None
+        return prompt * self.price.prompt + completion * self.price.completion + self.price.request
+
     def get(self, raw_input: str) -> TeacherRecord | None:
         """The recorded teacher response to the application's request for ``raw_input``, or None."""
         if raw_input in self._memo:
@@ -731,15 +740,20 @@ class TeacherRecords:
         if self.cache is not None:
             result = self.cache.get(key, request_context(body))
             if result is not None:
+                usage = result.usage or {}
                 return TeacherRecord(
-                    self._cost(result.usage or {}), _num(result.latency_ms), "cache", _num(result.created)
+                    self._cost(usage), _num(result.latency_ms), "cache", _num(result.created), self._list_cost(usage)
                 )
         if self.recording is not None:
             record = self.recording.get(key)
             if record is not None:
                 usage = _dict(record.get("usage"))
                 return TeacherRecord(
-                    self._cost(usage), _num(record.get("latency_ms")), "recording", _num(record.get("timestamp"))
+                    self._cost(usage),
+                    _num(record.get("latency_ms")),
+                    "recording",
+                    _num(record.get("timestamp")),
+                    self._list_cost(usage),
                 )
         return None
 
@@ -892,6 +906,8 @@ def build_cost_latency(
     teacher_latencies = [r.latency_ms for r in teacher_by_hash.values() if r.latency_ms is not None]
     teacher_cost = _mean(teacher_costs)
     teacher_latency_mean = _mean(teacher_latencies)
+    list_costs = [r.list_usd for r in teacher_by_hash.values() if r.list_usd is not None]
+    teacher_list = _mean(list_costs)
     concurrency = _labelling_concurrency(curate_stats)
     dates = sorted(d for d in (_iso_date(r.created) for r in teacher_by_hash.values()) if d)
     teacher_row = {
@@ -908,6 +924,9 @@ def build_cost_latency(
         "concurrency_source": concurrency["source"],
         "recorded": True,
         "source": "recorded live labelling calls on the test split (cache hits and retried attempts excluded)",
+        "list_price_usd_per_1k": None if teacher_list is None else teacher_list * 1000,
+        "list_price_note": "the recorded token counts at the pricing snapshot's list price, without the provider's "
+        "prompt cache",
     }
 
     header, preds = _predictions(spec.task, selected)
@@ -1002,6 +1021,14 @@ def build_cost_latency(
         incomplete.append("escalated test requests have no recorded teacher cost, and there is none to impute from")
     else:
         cascade_cost = student_cost + sum(c for c in escalated_costs if c is not None) / n_full
+    cascade_list: float | None = None
+    if n_full and student_cost is not None and teacher_list is not None:
+        escalated_list = [
+            (teacher_by_hash[h].list_usd if h in teacher_by_hash else None)
+            for h, esc in escalated_by_hash.items()
+            if esc
+        ]
+        cascade_list = student_cost + sum(v if v is not None else teacher_list for v in escalated_list) / n_full
 
     latency_hashes = [h for h in hashes if h in student_per_request and h in escalated_by_hash]
     composed_latency: list[float] = []
@@ -1051,6 +1078,7 @@ def build_cost_latency(
         "student_latency_source": student_source,
         "source": "composed per test request: student latency, plus the recorded teacher latency when escalated",
         "cost_basis": "student energy for every request plus the recorded teacher cost of escalated requests",
+        "list_price_usd_per_1k": None if cascade_list is None else cascade_list * 1000,
     }
     return {
         "teacher": teacher_row,
@@ -1180,6 +1208,15 @@ def build_break_even(
     exact = (labelling_usd + (training or 0.0)) / savings
     out["volume_exact"] = exact
     out["volume"] = out["requests"] = math.ceil(exact - 1e-9)
+    teacher_list = _num(_dict(cost_latency.get("teacher")).get("list_price_usd_per_1k"))
+    cascade_list = _num(cascade_row.get("list_price_usd_per_1k"))
+    if teacher_list is not None and cascade_list is not None and teacher_list > cascade_list:
+        list_savings = (teacher_list - cascade_list) / 1000
+        out["list_price"] = {
+            "savings_usd_per_request": list_savings,
+            "volume": math.ceil((labelling_usd + (training or 0.0)) / list_savings - 1e-9),
+            "note": "teacher and cascade priced at the list price without prompt caching; labelling cost as paid",
+        }
     return out
 
 
