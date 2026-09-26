@@ -1,0 +1,266 @@
+{
+  "task": "invoices",
+  "task_type": "extraction",
+  "date": "2026-09-26",
+  "n": 50,
+  "n_requested": 50,
+  "inputs": "valid split with gold, first n by seed 13",
+  "prompt_variant": null,
+  "teacher_prompt_sha256": "a02b497888ebd66d597cc027d23fd2665acd088d34dc3f857bb43bb27afa57cb",
+  "pricing_snapshot_date": "2026-09-26",
+  "run_id": "bakeoff-20260926T125001",
+  "projection": {
+    "sample_n": 50,
+    "sample_live": 50,
+    "sample_failed": 0,
+    "sample_usd": 0.00225372,
+    "mean_prompt_tokens": 685.96,
+    "mean_completion_tokens": 83.2,
+    "calls_left": 100,
+    "projected_usd": 0.01417746
+  },
+  "spent_usd": 0.0115921684,
+  "candidates": [
+    {
+      "candidate": "deepseek/deepseek-v4-flash-0731@deepinfra/fp8",
+      "model": "deepseek/deepseek-v4-flash-0731",
+      "provider": "deepinfra/fp8",
+      "n": 50,
+      "gold_score": 0.9919354838709677,
+      "metrics": {
+        "field_micro_f1": 0.9919354838709677,
+        "json_validity": 1.0,
+        "field_exact_match": 0.9925,
+        "doc_exact_match": 0.94
+      },
+      "invalid_outputs": 0,
+      "errors": 0,
+      "first_error": null,
+      "cost_usd": 0.00225372,
+      "cost_per_1k_usd": 0.045074399999999994,
+      "spent_usd": 0.00225372,
+      "latency_ms": {
+        "p50": 1130.112916987855,
+        "p95": 1516.5155732305718,
+        "mean": 1154.5996751030907,
+        "n": 50
+      },
+      "truncated": 0,
+      "reasoning_tokens": 0,
+      "reasoning_disabled": true,
+      "json_mode": true,
+      "served_by": {
+        "DeepInfra": 50
+      },
+      "models_returned": {
+        "deepseek/deepseek-v4-flash-0731": 50
+      },
+      "cache_hits": 0,
+      "tokens": {
+        "prompt": 34298,
+        "completion": 4160
+      },
+      "request": {
+        "extra_body": {
+          "provider": {
+            "order": [
+              "deepinfra/fp8"
+            ],
+            "allow_fallbacks": false,
+            "require_parameters": true,
+            "data_collection": "deny"
+          },
+          "reasoning": {
+            "enabled": false
+          }
+        },
+        "response_format": {
+          "type": "json_object"
+        }
+      },
+      "checks": {
+        "no_truncation": true,
+        "no_reasoning_tokens": true,
+        "few_failures": true
+      },
+      "notes": [],
+      "eligible": true
+    },
+    {
+      "candidate": "deepseek/deepseek-v4.1-flash@deepinfra/fp8",
+      "model": "deepseek/deepseek-v4.1-flash",
+      "provider": "deepinfra/fp8",
+      "n": 50,
+      "gold_score": 1.0,
+      "metrics": {
+        "field_micro_f1": 1.0,
+        "json_validity": 1.0,
+        "field_exact_match": 1.0,
+        "doc_exact_match": 1.0
+      },
+      "invalid_outputs": 0,
+      "errors": 0,
+      "first_error": null,
+      "cost_usd": 0.0033575584,
+      "cost_per_1k_usd": 0.067151168,
+      "spent_usd": 0.0033575584,
+      "latency_ms": {
+        "p50": 1222.3003749968484,
+        "p95": 1734.37975597335,
+        "mean": 1279.5104199380148,
+        "n": 50
+      },
+      "truncated": 0,
+      "reasoning_tokens": 0,
+      "reasoning_disabled": true,
+      "json_mode": true,
+      "served_by": {
+        "DeepInfra": 50
+      },
+      "models_returned": {
+        "deepseek/deepseek-v4.1-flash": 50
+      },
+      "cache_hits": 0,
+      "tokens": {
+        "prompt": 34348,
+        "completion": 4160
+      },
+      "request": {
+        "extra_body": {
+          "provider": {
+            "order": [
+              "deepinfra/fp8"
+            ],
+            "allow_fallbacks": false,
+            "require_parameters": true,
+            "data_collection": "deny"
+          },
+          "reasoning": {
+            "enabled": false
+          }
+        },
+        "response_format": {
+          "type": "json_object"
+        }
+      },
+      "checks": {
+        "no_truncation": true,
+        "no_reasoning_tokens": true,
+        "few_failures": true
+      },
+      "notes": [],
+      "eligible": true
+    },
+    {
+      "candidate": "qwen/qwen3-235b-a22b-2507@deepinfra/fp8",
+      "model": "qwen/qwen3-235b-a22b-2507",
+      "provider": "deepinfra/fp8",
+      "n": 50,
+      "gold_score": 0.9891304347826086,
+      "metrics": {
+        "field_micro_f1": 0.9891304347826086,
+        "json_validity": 0.98,
+        "field_exact_match": 0.98,
+        "doc_exact_match": 0.98
+      },
+      "invalid_outputs": 1,
+      "errors": 0,
+      "first_error": null,
+      "cost_usd": 0.00598089,
+      "cost_per_1k_usd": 0.11961780000000001,
+      "spent_usd": 0.00598089,
+      "latency_ms": {
+        "p50": 3176.867208472686,
+        "p95": 4880.120673397321,
+        "mean": 3279.8177291930187,
+        "n": 50
+      },
+      "truncated": 0,
+      "reasoning_tokens": 0,
+      "reasoning_disabled": false,
+      "json_mode": true,
+      "served_by": {
+        "DeepInfra": 50
+      },
+      "models_returned": {
+        "qwen/qwen3-235b-a22b-2507": 50
+      },
+      "cache_hits": 0,
+      "tokens": {
+        "prompt": 36461,
+        "completion": 4908
+      },
+      "request": {
+        "extra_body": {
+          "provider": {
+            "order": [
+              "deepinfra/fp8"
+            ],
+            "allow_fallbacks": false,
+            "require_parameters": true,
+            "data_collection": "deny"
+          }
+        },
+        "response_format": {
+          "type": "json_object"
+        }
+      },
+      "checks": {
+        "no_truncation": true,
+        "no_reasoning_tokens": true,
+        "few_failures": true
+      },
+      "notes": [],
+      "eligible": true
+    }
+  ],
+  "rule": {
+    "metrics": [
+      "field_micro_f1",
+      "json_validity"
+    ],
+    "within": 0.02,
+    "choose": "lowest cost per 1k successful requests",
+    "requires": [
+      "no truncated outputs",
+      "no reasoning tokens",
+      "at most 1% failed requests"
+    ],
+    "max_failure_rate": 0.01,
+    "text": "cheapest candidate (cost per 1k requests) whose field_micro_f1 and json_validity are within 0.02 of the best, among candidates with no truncated outputs, no reasoning tokens and at most 1% failed requests"
+  },
+  "chosen": {
+    "candidate": "deepseek/deepseek-v4-flash-0731@deepinfra/fp8",
+    "model": "deepseek/deepseek-v4-flash-0731",
+    "provider": "deepinfra/fp8",
+    "pinned": true,
+    "gold_score": 0.9919354838709677,
+    "metrics": {
+      "field_micro_f1": 0.9919354838709677,
+      "json_validity": 1.0,
+      "field_exact_match": 0.9925,
+      "doc_exact_match": 0.94
+    },
+    "cost_per_1k_usd": 0.045074399999999994,
+    "reason": "cheapest of 3 candidate(s) within 0.02 of the best (field_micro_f1 1.000, json_validity 1.000)",
+    "teacher": {
+      "model": "deepseek/deepseek-v4-flash-0731",
+      "extra_body": {
+        "provider": {
+          "order": [
+            "deepinfra/fp8"
+          ],
+          "allow_fallbacks": false,
+          "require_parameters": true,
+          "data_collection": "deny"
+        },
+        "reasoning": {
+          "enabled": false
+        }
+      },
+      "response_format": {
+        "type": "json_object"
+      }
+    }
+  }
+}

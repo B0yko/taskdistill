@@ -1,0 +1,245 @@
+{
+  "task": "banking77",
+  "task_type": "classification",
+  "date": "2026-09-26",
+  "n": 200,
+  "n_requested": 200,
+  "inputs": "valid split with gold, first n by seed 13",
+  "prompt_variant": null,
+  "teacher_prompt_sha256": "0d8430f72f5be434d4d343651d41f46bd7a18fcc318b4c53db6b84417a4c8fca",
+  "pricing_snapshot_date": "2026-09-26",
+  "run_id": "bakeoff-20260926T124750",
+  "projection": {
+    "sample_n": 50,
+    "sample_live": 50,
+    "sample_failed": 0,
+    "sample_usd": 0.00069444,
+    "mean_prompt_tokens": 403.02,
+    "mean_completion_tokens": 4.26,
+    "calls_left": 550,
+    "projected_usd": 0.022143120000000002
+  },
+  "spent_usd": 0.011937906,
+  "candidates": [
+    {
+      "candidate": "deepseek/deepseek-v4-flash-0731@deepinfra/fp8",
+      "model": "deepseek/deepseek-v4-flash-0731",
+      "provider": "deepinfra/fp8",
+      "n": 200,
+      "gold_score": 0.64,
+      "metrics": {
+        "accuracy": 0.64
+      },
+      "invalid_outputs": 2,
+      "errors": 0,
+      "first_error": null,
+      "cost_usd": 0.0026946,
+      "cost_per_1k_usd": 0.013473,
+      "spent_usd": 0.0026946,
+      "latency_ms": {
+        "p50": 504.5909790205769,
+        "p95": 1015.0728514185157,
+        "mean": 609.8700852275942,
+        "n": 200
+      },
+      "truncated": 0,
+      "reasoning_tokens": 0,
+      "reasoning_disabled": true,
+      "json_mode": true,
+      "served_by": {
+        "DeepInfra": 200
+      },
+      "models_returned": {
+        "deepseek/deepseek-v4-flash-0731": 200
+      },
+      "cache_hits": 0,
+      "tokens": {
+        "prompt": 80346,
+        "completion": 860
+      },
+      "request": {
+        "extra_body": {
+          "provider": {
+            "order": [
+              "deepinfra/fp8"
+            ],
+            "allow_fallbacks": false,
+            "require_parameters": true,
+            "data_collection": "deny"
+          },
+          "reasoning": {
+            "enabled": false
+          }
+        },
+        "response_format": null
+      },
+      "checks": {
+        "no_truncation": true,
+        "no_reasoning_tokens": true,
+        "few_failures": true
+      },
+      "notes": [],
+      "eligible": false
+    },
+    {
+      "candidate": "deepseek/deepseek-v4.1-flash@deepinfra/fp8",
+      "model": "deepseek/deepseek-v4.1-flash",
+      "provider": "deepinfra/fp8",
+      "n": 200,
+      "gold_score": 0.74,
+      "metrics": {
+        "accuracy": 0.74
+      },
+      "invalid_outputs": 1,
+      "errors": 0,
+      "first_error": null,
+      "cost_usd": 0.001471876,
+      "cost_per_1k_usd": 0.00735938,
+      "spent_usd": 0.001471876,
+      "latency_ms": {
+        "p50": 579.284479492344,
+        "p95": 949.8474270279982,
+        "mean": 623.801771425351,
+        "n": 200
+      },
+      "truncated": 0,
+      "reasoning_tokens": 0,
+      "reasoning_disabled": true,
+      "json_mode": true,
+      "served_by": {
+        "DeepInfra": 200
+      },
+      "models_returned": {
+        "deepseek/deepseek-v4.1-flash": 200
+      },
+      "cache_hits": 0,
+      "tokens": {
+        "prompt": 80546,
+        "completion": 867
+      },
+      "request": {
+        "extra_body": {
+          "provider": {
+            "order": [
+              "deepinfra/fp8"
+            ],
+            "allow_fallbacks": false,
+            "require_parameters": true,
+            "data_collection": "deny"
+          },
+          "reasoning": {
+            "enabled": false
+          }
+        },
+        "response_format": null
+      },
+      "checks": {
+        "no_truncation": true,
+        "no_reasoning_tokens": true,
+        "few_failures": true
+      },
+      "notes": [],
+      "eligible": true
+    },
+    {
+      "candidate": "qwen/qwen3-235b-a22b-2507@deepinfra/fp8",
+      "model": "qwen/qwen3-235b-a22b-2507",
+      "provider": "deepinfra/fp8",
+      "n": 200,
+      "gold_score": 0.725,
+      "metrics": {
+        "accuracy": 0.725
+      },
+      "invalid_outputs": 1,
+      "errors": 0,
+      "first_error": null,
+      "cost_usd": 0.00777143,
+      "cost_per_1k_usd": 0.03885715,
+      "spent_usd": 0.00777143,
+      "latency_ms": {
+        "p50": 387.290667014895,
+        "p95": 967.804778844583,
+        "mean": 485.25728314270964,
+        "n": 200
+      },
+      "truncated": 0,
+      "reasoning_tokens": 0,
+      "reasoning_disabled": false,
+      "json_mode": true,
+      "served_by": {
+        "DeepInfra": 200
+      },
+      "models_returned": {
+        "qwen/qwen3-235b-a22b-2507": 200
+      },
+      "cache_hits": 0,
+      "tokens": {
+        "prompt": 80947,
+        "completion": 884
+      },
+      "request": {
+        "extra_body": {
+          "provider": {
+            "order": [
+              "deepinfra/fp8"
+            ],
+            "allow_fallbacks": false,
+            "require_parameters": true,
+            "data_collection": "deny"
+          }
+        },
+        "response_format": null
+      },
+      "checks": {
+        "no_truncation": true,
+        "no_reasoning_tokens": true,
+        "few_failures": true
+      },
+      "notes": [],
+      "eligible": true
+    }
+  ],
+  "rule": {
+    "metrics": [
+      "accuracy"
+    ],
+    "within": 0.02,
+    "choose": "lowest cost per 1k successful requests",
+    "requires": [
+      "no truncated outputs",
+      "no reasoning tokens",
+      "at most 1% failed requests"
+    ],
+    "max_failure_rate": 0.01,
+    "text": "cheapest candidate (cost per 1k requests) whose accuracy is within 0.02 of the best, among candidates with no truncated outputs, no reasoning tokens and at most 1% failed requests"
+  },
+  "chosen": {
+    "candidate": "deepseek/deepseek-v4.1-flash@deepinfra/fp8",
+    "model": "deepseek/deepseek-v4.1-flash",
+    "provider": "deepinfra/fp8",
+    "pinned": true,
+    "gold_score": 0.74,
+    "metrics": {
+      "accuracy": 0.74
+    },
+    "cost_per_1k_usd": 0.00735938,
+    "reason": "cheapest of 2 candidate(s) within 0.02 of the best (accuracy 0.740)",
+    "teacher": {
+      "model": "deepseek/deepseek-v4.1-flash",
+      "extra_body": {
+        "provider": {
+          "order": [
+            "deepinfra/fp8"
+          ],
+          "allow_fallbacks": false,
+          "require_parameters": true,
+          "data_collection": "deny"
+        },
+        "reasoning": {
+          "enabled": false
+        }
+      },
+      "response_format": null
+    }
+  }
+}
