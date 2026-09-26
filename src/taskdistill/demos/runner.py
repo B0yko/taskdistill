@@ -236,8 +236,10 @@ def stage_capture(ctx: DemoContext) -> None:
     if ctx.mode == "live":
         _confirm_live_capture(ctx, todo)
     teacher = _teacher(ctx, "demo-capture")
-    upstream_port = free_port(0)
     proxy_port = free_port(CAPTURE_PORT)
+    upstream_port = free_port(0)
+    while upstream_port == proxy_port:  # both probes closed their sockets; never hand out one port twice
+        upstream_port = free_port(0)
     if proxy_port != CAPTURE_PORT:
         ctx.log(f"      port {CAPTURE_PORT} is taken; the capture proxy uses {proxy_port}")
     api_key = ctx.spec.teacher.api_key() if ctx.mode == "live" else "replay"
