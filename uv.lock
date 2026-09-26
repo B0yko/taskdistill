@@ -2007,7 +2007,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "datasketch", specifier = ">=1.6" },
+    { name = "datasketch", specifier = ">=2.0" },
     { name = "fastapi", specifier = ">=0.110" },
     { name = "httpx", specifier = ">=0.27" },
     { name = "huggingface-hub", specifier = ">=0.23" },
