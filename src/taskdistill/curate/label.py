@@ -7,7 +7,9 @@ uncached requests and confirmed (``--yes`` above $0.50). The source bounds concu
 refusal stops the batch and propagates.
 
 An invalid answer drops a train or valid example. A test example is kept with no teacher value, so the test split
-does not depend on the teacher's answers and the teacher's invalid answers count against it in evaluation.
+does not depend on the teacher's answers and the teacher's invalid answers count against it in evaluation. A test
+example normalisation already kept without a teacher value (its recorded outputs were invalid or had no majority,
+``teacher_origin = "invalid"``) is never relabelled.
 """
 
 from __future__ import annotations
@@ -119,7 +121,8 @@ def label_examples(
     projection_sample: int = DEFAULT_PROJECTION_SAMPLE,
     log: Callable[[str], None] = print,
 ) -> tuple[list[Example], dict[str, Any], list[str]]:
-    """Label every example without a teacher value; return the kept examples, the counts and the request keys.
+    """Label every example without a teacher value (except test rows already kept as ``teacher_origin = "invalid"``);
+    return the kept examples, the counts and the request keys.
 
     Newly labelled examples get the normalised teacher value (``teacher_origin = "labelled"``). An invalid answer
     drops a train or valid example; a test example is kept without a teacher value (``teacher_origin =
@@ -128,7 +131,7 @@ def label_examples(
     teacher. The batch runs in its own event loop and releases the teacher's connections (``aclose``) before that
     loop ends.
     """
-    pending = [ex for ex in examples if ex.teacher is None]
+    pending = [ex for ex in examples if ex.teacher is None and ex.teacher_origin != "invalid"]
     stats: dict[str, Any] = {
         "requested": len(pending),
         "mode": teacher.mode if teacher is not None else None,

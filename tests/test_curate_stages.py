@@ -457,7 +457,8 @@ def test_pii_scrub_counts_hits_per_kind_and_field() -> None:
     ex = example("Bill from ap@example.com, call 555-0142, card 4111 1111 1111 1111", teacher=value, gold=dict(value))
     plain = example("Nothing to hide here", teacher=dict(value, contact=None))
     stage = PiiStage(spec)
-    counts = scrub_examples(stage, [ex, plain])
+    kept, counts = scrub_examples(stage, [ex, plain])
+    assert kept == [ex, plain]
 
     assert ex.text == "Bill from <EMAIL>, call <PHONE>, card <CARD>"
     assert ex.raw_input.startswith("Bill from ap@example.com")  # the raw input is kept in memory
@@ -475,7 +476,7 @@ def test_pii_examples_changed_counts_distinct_examples_across_repeated_scrubs() 
     spec = make_spec("extraction")
     ex = example("Invoice A-1 from Brala Ltd, contact ap@example.com")
     stage = PiiStage(spec)
-    assert scrub_examples(stage, [ex])["examples_changed"] == 1
+    assert scrub_examples(stage, [ex])[1]["examples_changed"] == 1
     ex.teacher = {"vendor_name": "Brala Ltd", "invoice_number": "A-1", "total_amount": 1.0, "contact": "ap@example.com"}
     ex.teacher_origin = "labelled"
     hits = stage.scrub(ex, text=False, gold=False)  # the pipeline scrubs labelled values again
@@ -492,13 +493,13 @@ def test_pii_scrub_respects_configured_kinds_and_can_be_disabled() -> None:
     text = "Mail ap@example.com from 192.0.2.10"
     only_ip = make_spec(curate={"pii": {"kinds": ["ipv4"]}})
     ex = example(text)
-    counts = scrub_examples(PiiStage(only_ip), [ex])
+    _, counts = scrub_examples(PiiStage(only_ip), [ex])
     assert ex.text == "Mail ap@example.com from <IPV4>"
     assert counts["hits"] == {"ipv4": 1}
 
     disabled = make_spec(curate={"pii": {"enabled": False}})
     ex = example(text, teacher="card_arrival")
-    counts = scrub_examples(PiiStage(disabled), [ex])
+    _, counts = scrub_examples(PiiStage(disabled), [ex])
     assert ex.text == text
     assert counts["enabled"] is False
     assert counts["total"] == 0
@@ -1057,3 +1058,49 @@ def test_card_lists_split_sizes_repeats_gold_conflicts_and_labelling_cost() -> N
     assert "request models: `vendor/teacher-a` 2, `vendor/other` 1" in card
     assert "1 captures asked another model than `vendor/teacher-a`" in card
     assert "1 captures used another system prompt" in card
+
+
+def test_card_shows_pii_schema_invalid_counts_and_kept_test_rows() -> None:
+    stats = {
+        "task": "invoices",
+        "task_type": "extraction",
+        "date": "2026-09-26T10:00:00+00:00",
+        "splits": {"train": 1, "valid": 0, "test": 1},
+        "stages": {"normalise": {"kept_test_all_invalid": 2, "kept_test_no_majority": 1}},
+        "pii": {
+            "enabled": True,
+            "kinds": ["email"],
+            "hits": {"email": 3},
+            "by_field": {"input": {"email": 1}, "teacher": {"email": 1}, "gold": {"email": 1}},
+            "total": 3,
+            "examples_changed": 1,
+            "pii_schema_invalid": 1,
+            "pii_schema_invalid_gold": 1,
+            "pii_schema_invalid_fields": {"contact": {"teacher": 1, "labelled": 0, "gold": 1, "kinds": {"email": 2}}},
+        },
+        "teacher": {"model": TEACHER_MODEL, "provider": None, "prompt_sha256": "ab" * 32},
+        "labelling": {
+            "requested": 4,
+            "live": 0,
+            "cached": 0,
+            "replayed": 4,
+            "cost_usd": 0.0,
+            "date": "2026-09-21",
+            "invalid": 0,
+            "kept_invalid_test": 0,
+            "truncated": 0,
+            "pii_schema_invalid": 2,
+        },
+        "leakage": {"ok": True, "exact": 0, "near": 0, "threshold": 0.9},
+    }
+    card = render_card(stats)
+    assert (
+        "3 predefined test rows kept without a teacher value instead, so the test split never depends on the "
+        "teacher's answers" in card
+    )
+    assert (
+        "1 examples were dropped (their scrubbed teacher or curate-labelled answer fails the task's JSON Schema), "
+        "and 1 gold values were set to `null` instead." in card
+    )
+    assert "| contact | 1 | 0 | 1 | `email` 2 |" in card
+    assert "; 2 dropped, their scrubbed answer fails the task's JSON Schema." in card

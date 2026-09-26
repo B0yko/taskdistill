@@ -182,7 +182,14 @@ def render_card(stats: Mapping[str, Any], card_info: Mapping[str, Any] | None = 
         "across predefined splits (kept in the most protected split).",
         f"- Output normalisation: {_n(norm.get('invalid_outputs'))} invalid outputs dropped; "
         f"{_n(norm.get('dropped_all_invalid'))} examples dropped with no valid output, "
-        f"{_n(norm.get('dropped_no_majority'))} with no majority; {_n(norm.get('gold_invalid'))} invalid gold values.",
+        f"{_n(norm.get('dropped_no_majority'))} with no majority; {_n(norm.get('gold_invalid'))} invalid gold values"
+        + (
+            f" ({_n(norm.get('kept_test_all_invalid', 0) + norm.get('kept_test_no_majority', 0))} predefined test "
+            "rows kept without a teacher value instead, so the test split never depends on the teacher's answers)"
+            if norm.get("kept_test_all_invalid") or norm.get("kept_test_no_majority")
+            else ""
+        )
+        + ".",
         f"- Exact repeats of an input (same input hash within one source and split) merged into one example: "
         f"{_n(dedupe.get('repeated_inputs', 0))} ("
         + ", ".join(f"{name} {_n(dedupe.get('splits', {}).get(name, {}).get('repeated_inputs', 0))}" for name in SPLITS)
@@ -222,6 +229,27 @@ def render_card(stats: Mapping[str, Any], card_info: Mapping[str, Any] | None = 
             for kind, count in pii.get("hits", {}).items()
         ]
         out += _table(["kind", "input", "teacher", "gold", "total"], rows)
+        invalid, invalid_gold = pii.get("pii_schema_invalid", 0), pii.get("pii_schema_invalid_gold", 0)
+        if invalid or invalid_gold:
+            out += [
+                "",
+                f"A scrubbed placeholder can break a field's `format`, `pattern`, `enum` or length constraint: "
+                f"{_n(invalid)} examples were dropped (their scrubbed teacher or curate-labelled answer fails the "
+                f"task's JSON Schema), and {_n(invalid_gold)} gold values were set to `null` instead.",
+            ]
+            invalid_fields: Mapping[str, Mapping[str, Any]] = pii.get("pii_schema_invalid_fields", {})
+            if invalid_fields:
+                rows = [
+                    [
+                        name,
+                        hit.get("teacher", 0),
+                        hit.get("labelled", 0),
+                        hit.get("gold", 0),
+                        _counts(hit.get("kinds", {})),
+                    ]
+                    for name, hit in invalid_fields.items()
+                ]
+                out += ["", *_table(["field", "teacher", "labelled", "gold", "PII kinds found there"], rows)]
     else:
         out.append("Disabled for this task.")
 
@@ -273,13 +301,20 @@ def render_card(stats: Mapping[str, Any], card_info: Mapping[str, Any] | None = 
         providers = labelling.get("providers") or {}
         served = f"; served by {', '.join(f'{k} {_n(v)}' for k, v in providers.items())}" if providers else ""
         kept = labelling.get("kept_invalid_test", 0)
+        pii_invalid = labelling.get("pii_schema_invalid", 0)
         out.append(
             f"- Labelling by curate: {_n(labelling.get('requested'))} requests ({_n(labelling.get('live'))} live, "
             f"{_n(labelling.get('cached'))} cached, {_n(labelling.get('replayed'))} replayed from a recording), "
             f"cost {_usd(labelling.get('cost_usd'))} in this run{original}, labelled on "
             f"{labelling.get('date') or '-'}{served}; {_n(labelling.get('invalid'))} invalid answers "
             f"({_n(labelling.get('invalid', 0) - kept)} train/valid examples dropped, {_n(kept)} test examples kept "
-            f"without a teacher value), {_n(labelling.get('truncated'))} truncated."
+            f"without a teacher value), {_n(labelling.get('truncated'))} truncated"
+            + (
+                f"; {_n(pii_invalid)} dropped, their scrubbed answer fails the task's JSON Schema"
+                if pii_invalid
+                else ""
+            )
+            + "."
         )
     else:
         out.append("- Labelling by curate: none needed (every example had a recorded teacher output); cost $0.0000.")

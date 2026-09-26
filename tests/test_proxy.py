@@ -341,7 +341,11 @@ def test_unpaired_surrogate_escapes_are_forwarded_but_not_captured(
     assert third.status_code == 200
     assert [c.request.content for c in route.calls] == [cut_request, RAW_REQUEST, paired_request]
     a, b, c = _rows(store)
-    assert (a.request_key, a.request_body, a.captured) == (None, cut_request.decode(), False)
+    assert (a.request_key, a.request_body, a.captured) == (
+        request_key(json.loads(cut_request)),
+        cut_request.decode(),
+        False,
+    )
     assert a.error == '"request" contains an unpaired UTF-16 surrogate escape'
     assert (b.request_key, b.response_body, b.captured) == (
         request_key(json.loads(RAW_REQUEST)),

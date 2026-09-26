@@ -7,10 +7,13 @@ Formats, one JSON object per line (``.jsonl`` or gzip-compressed ``.jsonl.gz``; 
   object (an extraction result), which is stored as compact JSON.
 - ``inputs``: ``{"input": str, "gold"?: any, "meta"?: object}``; the teacher labels these during curate.
 
-``meta`` is kept as given, so a predefined split such as ``meta.split`` reaches curate. The whole file is
-validated before anything is written, including that every string can be stored as UTF-8; the first bad line
-aborts the import with its line number. ``pairs`` and ``inputs`` rows are written in one transaction, and so are
-``openai`` rows when the store offers ``add_captures``.
+``meta`` is kept as given, so a predefined split such as ``meta.split`` reaches curate. When set, the predefined
+split field (``predefined``: the task's ``curate.split.predefined``, by default ``meta.split`` as in every template)
+must hold train, valid or test, or an alias curate accepts (validation, val, dev): curate cannot place a row with any
+other value, and an import row cannot be removed from the store once written. The whole file is validated before
+anything is written, including that every string can be stored as UTF-8; the first bad line aborts the import with
+its line number. ``pairs`` and ``inputs`` rows are written in one transaction, and so are ``openai`` rows when the
+store offers ``add_captures``.
 
 ``completion_problem`` is the one shape check shared with the proxy and export: a pair the proxy stores as
 captured is one export writes and import accepts.
@@ -24,6 +27,7 @@ from collections.abc import Iterator, Mapping
 from pathlib import Path
 from typing import Any, Literal, TypedDict, get_args
 
+from taskdistill.curate.merge import CurateError, canonical_split, meta_get, meta_keys
 from taskdistill.store import Store
 from taskdistill.teacher.request_key import request_key
 
@@ -123,6 +127,17 @@ def _type_name(value: Any) -> str:
     )
 
 
+class _SplitField:
+    """The predefined split field (a meta path such as ``meta.split``) and its keys inside ``meta``."""
+
+    def __init__(self, path: str) -> None:
+        try:
+            self.keys = meta_keys(path)
+        except CurateError as exc:
+            raise ValueError(str(exc)) from None
+        self.path = path
+
+
 class _Line:
     """Validation helpers bound to one line, so every error carries its location."""
 
@@ -173,12 +188,17 @@ class _Line:
             raise self.fail('"output" is empty')
         return value
 
-    def meta(self, obj: Mapping[str, Any]) -> dict[str, Any]:
+    def meta(self, obj: Mapping[str, Any], split: _SplitField | None = None) -> dict[str, Any]:
         value = obj.get("meta")
         if value is None:
             return {}
         if not isinstance(value, dict):
             raise self.fail(f'"meta" must be a JSON object, got {_type_name(value)}')
+        if split is not None:
+            try:
+                canonical_split(meta_get(value, split.keys), split.path)
+            except CurateError as exc:
+                raise self.fail(str(exc)) from None
         return value
 
     def body(self, obj: Mapping[str, Any], name: str) -> dict[str, Any]:
@@ -190,11 +210,11 @@ class _Line:
         return value
 
 
-def _import_row(line: _Line, obj: Mapping[str, Any], fmt: str) -> dict[str, Any]:
+def _import_row(line: _Line, obj: Mapping[str, Any], fmt: str, split: _SplitField | None) -> dict[str, Any]:
     row: dict[str, Any] = {"input": line.input_text(obj)}
     row["output"] = line.output_text(obj) if fmt == "pairs" else None
     row["gold"] = obj.get("gold")
-    row["meta"] = line.meta(obj)
+    row["meta"] = line.meta(obj, split)
     for name, value in row.items():
         if not utf8_safe(value):
             raise line.fail(f'"{name}" {UNPAIRED_SURROGATE}')
@@ -215,11 +235,15 @@ def _capture_row(line: _Line, obj: Mapping[str, Any]) -> dict[str, Any]:
         return value if isinstance(value, int) and not isinstance(value, bool) else None
 
     cost = usage.get("cost")
+    try:
+        key = request_key(request)
+    except ValueError as exc:
+        raise line.fail(f'"request" is not valid JSON: {exc}') from None
     return {
         "source": "import",
         "status": 200,
         "captured": True,
-        "request_key": request_key(request),
+        "request_key": key,
         "request_body": json.dumps(request, ensure_ascii=False),
         "response_body": json.dumps(response, ensure_ascii=False),
         "prompt_tokens": as_int(usage.get("prompt_tokens")),
@@ -239,10 +263,17 @@ def _write_captures(store: Store, task: str, rows: list[dict[str, Any]]) -> int:
     return len(rows)
 
 
-def import_file(store: Store, task: str, path: str | Path, fmt: str) -> ImportCounts:
-    """Validate every line of ``path`` in format ``fmt``, then write the rows for ``task`` into ``store``."""
+def import_file(
+    store: Store, task: str, path: str | Path, fmt: str, predefined: str | None = "meta.split"
+) -> ImportCounts:
+    """Validate every line of ``path`` in format ``fmt``, then write the rows for ``task`` into ``store``.
+
+    ``predefined`` is the meta path of the predefined split (the task's ``curate.split.predefined``; None skips the
+    check): a ``pairs`` or ``inputs`` row whose value there is set must name train, valid or test.
+    """
     if fmt not in FORMATS:
         raise ValueError(f"unknown import format {fmt!r}; expected one of: {', '.join(FORMATS)}")
+    split = _SplitField(predefined) if predefined else None
     path = Path(path)
     where = path.name
     rows: list[dict[str, Any]] = []
@@ -254,7 +285,7 @@ def import_file(store: Store, task: str, path: str | Path, fmt: str) -> ImportCo
             continue
         line = _Line(where, lineno, fmt)
         obj = line.parse(text)
-        rows.append(_capture_row(line, obj) if fmt == "openai" else _import_row(line, obj, fmt))
+        rows.append(_capture_row(line, obj) if fmt == "openai" else _import_row(line, obj, fmt, split))
 
     if fmt == "openai":
         imported = _write_captures(store, task, rows) if rows else 0

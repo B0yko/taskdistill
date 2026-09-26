@@ -231,6 +231,14 @@ FINISH_ERROR_RESPONSE: dict[str, Any] = {
             ['{"request": {"messages": [{"role": "user", "content": "x"}]}, "response": {"choices": ["y"]}}'],
             '"response.choices" must hold objects',
         ),
+        (
+            "openai",
+            [
+                '{"request": {"model": "example/teacher", "messages": [{"role": "user", "content": "x"}], '
+                '"temperature": NaN}, "response": ' + json.dumps(_response("y")) + "}"
+            ],
+            'bad.jsonl:1: "request" is not valid JSON',
+        ),
         ("inputs", ['{"input": "cut \\ud83d"}'], 'bad.jsonl:1: "input" contains an unpaired UTF-16 surrogate escape'),
         ("pairs", ['{"input": "a", "output": {"v": "\\udc00"}}'], '"output" contains an unpaired UTF-16 surrogate'),
         ("pairs", ['{"input": "a", "output": "b", "gold": ["\\ud83d"]}'], '"gold" contains an unpaired UTF-16'),

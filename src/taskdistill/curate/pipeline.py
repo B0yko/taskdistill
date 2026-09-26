@@ -97,15 +97,22 @@ def _summary(name: str, c: Mapping[str, Any]) -> str:
             f"{c['cross_split_merged']} cross-split merged, {sum(c['meta_conflicts'].values())} meta conflicts"
         )
     if name == "normalise":
+        kept_test = c["kept_test_all_invalid"] + c["kept_test_no_majority"]
         return (
-            f"{c['kept']} kept ({c['labelled']} with teacher output, {c['unlabelled']} to label); "
-            f"{c['invalid_outputs']} invalid outputs, dropped {c['dropped_all_invalid']} all-invalid and "
+            f"{c['kept']} kept ({c['labelled']} with teacher output, {c['unlabelled']} to label"
+            + (f", {kept_test} predefined test rows without a teacher value" if kept_test else "")
+            + f"); {c['invalid_outputs']} invalid outputs, dropped {c['dropped_all_invalid']} all-invalid and "
             f"{c['dropped_no_majority']} without a majority; {c['gold_invalid']} invalid gold"
         )
     if name == "pii":
         if not c["enabled"]:
             return "disabled"
-        return f"{c['total']} hits ({_kinds(c['hits']) or 'none'}) in {c['examples_changed']} examples"
+        invalid = _kinds(
+            {"examples dropped": c["pii_schema_invalid"], "golds set to None": c["pii_schema_invalid_gold"]}
+        )
+        return f"{c['total']} hits ({_kinds(c['hits']) or 'none'}) in {c['examples_changed']} examples" + (
+            f"; scrubbed values failing the JSON Schema: {invalid}" if invalid else ""
+        )
     if name == "split":
         predefined, randomly = sum(c["predefined"].values()), sum(c["random"].values())
         detail = "all predefined" if not randomly else f"{predefined} predefined, {randomly} {c['method']}"
@@ -126,6 +133,11 @@ def _summary(name: str, c: Mapping[str, Any]) -> str:
             f"{c['labelled']} labelled of {c['requested']} ({c['live']} live, {c['cached']} cached, "
             f"{c['replayed']} replayed; ${c['cost_usd']:.4f}); {c['invalid']} invalid "
             f"({c['kept_invalid_test']} test rows kept without a teacher value), {c['truncated']} truncated"
+            + (
+                f"; {c['pii_schema_invalid']} dropped, their scrubbed answer fails the JSON Schema"
+                if c.get("pii_schema_invalid")
+                else ""
+            )
         )
     if name == "length":
         parts = []
@@ -185,7 +197,7 @@ EMPTIED_BY = {
     "for the valid/test fractions)",
     "dedupe": "dedupe within splits removed every row (duplicate clusters with conflicting outputs are dropped)",
     "cross_split": "every row duplicates a row of a more protected split",
-    "label": "every row's teacher answer was invalid",
+    "label": "every row's teacher answer was invalid, or failed the JSON Schema after the PII scrub",
     "length": "every row is longer than train.max_seq_len",
 }
 
@@ -299,7 +311,11 @@ def run_curate(
     examples, counts = normalise_examples(spec, examples)
     done("normalise", counts)
     pii = PiiStage(spec)
-    done("pii", scrub_examples(pii, examples))
+    examples, counts = scrub_examples(pii, examples)
+    done("pii", counts)
+    warning = pii.schema_warning("teacher", "gold")
+    if warning:
+        log(warning)
     done("split", assign_splits(spec, examples))
     sizes: dict[str, dict[str, int]] = {"split": _sizes(by_split(examples))}
 
@@ -321,7 +337,13 @@ def run_curate(
         if ex.teacher_origin == "labelled":
             labelled_hits.update(pii.scrub(ex, text=False, gold=False))
     label_stats["pii_hits"] = dict(sorted(labelled_hits.items()))
+    before = len(kept)
+    kept = [ex for ex in kept if not pii.rejected(ex)]  # the scrubbed answer fails the JSON Schema
+    label_stats["pii_schema_invalid"] = before - len(kept)
     done("label", label_stats)
+    warning = pii.schema_warning("labelled")
+    if warning:
+        log(warning)
 
     splits = by_split(kept)
     sizes["label"] = _sizes(splits)

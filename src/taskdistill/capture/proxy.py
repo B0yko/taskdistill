@@ -96,8 +96,8 @@ def _request_key(parsed: Any) -> str | None:
         return None
     try:
         return request_key(parsed)
-    except UnicodeEncodeError:
-        return None  # an unpaired surrogate escape; completion_problem reports it
+    except ValueError:
+        return None  # NaN or an infinity in a key field; the row is still logged, just without a request_key
 
 
 def _as_int(value: Any) -> int | None:

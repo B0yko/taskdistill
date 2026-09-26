@@ -14,8 +14,10 @@ population, so adding rows later moves at most the few rows at a split boundary:
 - otherwise the hash order itself.
 
 Dedupe runs on the PII-scrubbed text the student trains on. A duplicate cluster keeps one example: the teacher
-values of its members vote (unlabelled members abstain) and the lowest-index member carrying the strict-majority
-value survives. Without a majority the whole cluster is dropped. The survivor takes the strict-majority gold of the
+values of its members vote, each weighted by the number of valid recorded outputs behind it (``example.votes``), so
+the vote counts outputs as merging by input hash does (unlabelled members abstain), and the lowest-index member
+carrying the strict-majority value survives. Without a strict majority of the weighted votes the whole cluster is
+dropped. The survivor takes the strict-majority gold of the
 cluster; when the golds conflict without a majority it keeps its own gold. Gold conflicts are counted.
 """
 
@@ -25,7 +27,7 @@ import hashlib
 import json
 import math
 from collections import Counter
-from collections.abc import Mapping, Sequence
+from collections.abc import Iterable, Mapping, Sequence
 from typing import Any
 
 from taskdistill.config import TaskSpec
@@ -175,17 +177,40 @@ def _value_key(value: Any) -> bytes:
     return canonical_json(value)
 
 
+def weighted_majority(votes: Iterable[tuple[Any, int]]) -> tuple[bool, Any]:
+    """``(True, winner)`` when one value holds a strict majority of the summed weights, else ``(False, None)``.
+
+    Values are compared by canonical JSON; the first occurrence of the winner is returned as given. Values with a
+    weight below 1 abstain.
+    """
+    first: dict[bytes, Any] = {}
+    weights: Counter[bytes] = Counter()
+    for value, weight in votes:
+        if value is None or weight < 1:
+            continue
+        key = _value_key(value)
+        first.setdefault(key, value)
+        weights[key] += weight
+    if not weights:
+        return False, None
+    key, top = weights.most_common(1)[0]
+    if 2 * top > sum(weights.values()):
+        return True, first[key]
+    return False, None
+
+
 def resolve_cluster(members: Sequence[Example]) -> tuple[Example | None, bool]:
     """The example a duplicate cluster keeps (None when its labelled members have no strict majority), and whether
     the members' golds conflict.
 
-    Members are in index order. The survivor is the first member carrying the majority teacher value (the first
-    member when none is labelled). Its gold becomes the strict-majority gold of the cluster; when the golds conflict
-    without a majority it keeps its own.
+    Members are in index order. Each labelled member's teacher value votes with the weight ``example.votes`` (the
+    valid recorded outputs behind it). The survivor is the first member carrying the majority teacher value (the
+    first member when none is labelled). Its gold becomes the strict-majority gold of the cluster; when the golds
+    conflict without a majority it keeps its own.
     """
     labelled = [ex for ex in members if ex.teacher is not None]
     if labelled:
-        ok, winner = majority_vote(ex.teacher for ex in labelled)
+        ok, winner = weighted_majority((ex.teacher, max(ex.votes, 1)) for ex in labelled)
         if not ok:
             return None, False
         target = _value_key(winner)

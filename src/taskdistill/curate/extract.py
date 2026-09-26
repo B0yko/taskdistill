@@ -18,12 +18,23 @@ class InputUnparsed(ValueError):
 
 
 def _content_text(content: Any) -> str | None:
+    """The text of a message's content: a string, or OpenAI content parts that are all text parts.
+
+    None when any part is not a text part or its ``text`` is missing or not a string (null, a number, ...), so the
+    request is unparsed rather than an error.
+    """
     if isinstance(content, str):
         return content
-    if isinstance(content, list):  # OpenAI content parts
-        parts = [p.get("text", "") for p in content if isinstance(p, Mapping) and p.get("type") == "text"]
-        if parts and len(parts) == len(content):
-            return "".join(parts)
+    if isinstance(content, list) and content:  # OpenAI content parts
+        parts: list[str] = []
+        for part in content:
+            if not isinstance(part, Mapping) or part.get("type") != "text":
+                return None
+            text = part.get("text")
+            if not isinstance(text, str):
+                return None
+            parts.append(text)
+        return "".join(parts)
     return None
 
 

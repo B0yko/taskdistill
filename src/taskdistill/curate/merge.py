@@ -12,6 +12,7 @@ import json
 from collections import Counter
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
+from datetime import UTC, datetime
 from typing import Any
 
 from taskdistill.config import TaskSpec
@@ -21,8 +22,9 @@ from taskdistill.curate.normalise import normalise_output
 from taskdistill.curate.pii import PiiScrubber
 from taskdistill.store import CaptureRow, ImportRow, Store
 from taskdistill.tasks.classification import normalise_label
-from taskdistill.tasks.extraction import canonical_output, normalise_extraction
+from taskdistill.tasks.extraction import canonical_output, normalise_extraction, validate
 from taskdistill.teacher.client import message_text
+from taskdistill.teacher.request_key import canonical_json
 
 SPLITS = ("train", "valid", "test")
 #: Accepted spellings of a predefined split value.
@@ -36,6 +38,8 @@ SPLIT_ALIASES = {
 }
 #: How strongly a split is protected: when merged records disagree, the most protected split wins.
 SPLIT_RANK = {"train": 0, "valid": 1, "test": 2}
+#: The values a PII scrub can make schema-invalid: recorded and labelled teacher values, and golds.
+SCHEMA_ROLES = ("teacher", "labelled", "gold")
 
 
 class CurateError(RuntimeError):
@@ -52,6 +56,7 @@ class Record:
     meta: dict[str, Any]
     origin: str  # capture | pairs | inputs
     ts: float | None = None
+    source: str | None = None  # where the record is stored, for error messages: "capture 12", "import row 7 (pairs)"
 
 
 @dataclass
@@ -70,7 +75,11 @@ class Example:
     origins: list[str] = field(default_factory=list)
     repeats: int = 0
     teacher: Any = None
-    teacher_origin: str | None = None  # recorded | labelled | invalid (a test row whose labelling answer was invalid)
+    #: recorded | labelled | invalid (a test row kept without a teacher value: its recorded outputs were all invalid
+    #: or had no majority, or its labelling answer was invalid; it is never labelled)
+    teacher_origin: str | None = None
+    #: How many valid recorded outputs support ``teacher``: the weight of this example in the dedupe vote.
+    votes: int = 1
     gold: Any = None
     text: str = ""
     split: str | None = None
@@ -118,14 +127,19 @@ def meta_set(meta: dict[str, Any], keys: Sequence[str], value: Any) -> None:
     parent[keys[-1]] = value
 
 
-def canonical_split(value: Any, path: str = "meta.split") -> str | None:
-    """``train``/``valid``/``test`` for a predefined split value (aliases accepted); None when unset."""
+def canonical_split(value: Any, path: str = "meta.split", source: str | None = None) -> str | None:
+    """``train``/``valid``/``test`` for a predefined split value (aliases accepted); None when unset.
+
+    An unknown value raises :class:`CurateError` naming ``path``, the value and, when given, ``source`` (the row
+    that holds it).
+    """
     if value is None or (isinstance(value, str) and not value.strip()):
         return None
     name = SPLIT_ALIASES.get(value.strip().lower()) if isinstance(value, str) else None
     if name is None:
+        where = f" in {source}" if source else ""
         raise CurateError(
-            f"{path} is {value!r}; expected train, valid or test (aliases: validation, val, dev for valid)"
+            f"{path} is {value!r}{where}; expected train, valid or test (aliases: validation, val, dev for valid)"
         )
     return name
 
@@ -228,6 +242,12 @@ def _response_output(response_body: str) -> str | None:
     return message_text(message.get("content"))
 
 
+def _import_source(row: ImportRow) -> str:
+    """``import row 7 (pairs, imported 2026-09-20 14:03 UTC)``: the store row an imported record came from."""
+    when = datetime.fromtimestamp(row.ts, UTC).strftime("%Y-%m-%d %H:%M UTC") if row.ts else "unknown time"
+    return f"import row {row.id} ({row.format}, imported {when})"
+
+
 def extract_records(
     spec: TaskSpec, captures: Iterable[CaptureRow], imports: Iterable[ImportRow]
 ) -> tuple[list[Record], dict[str, Any]]:
@@ -255,7 +275,7 @@ def extract_records(
         if output is None:
             counts["missing_output"] += 1
             continue
-        records.append(Record(raw, output, None, {}, "capture", row.ts))
+        records.append(Record(raw, output, None, {}, "capture", row.ts, f"capture {row.id}"))
         counts["from_captures"] += 1
     for imp in imports:
         if not normalise_text(imp.input):
@@ -263,7 +283,7 @@ def extract_records(
             continue
         output = imp.output if imp.format == "pairs" else None
         meta = imp.meta if isinstance(imp.meta, dict) else {}
-        records.append(Record(imp.input, output, imp.gold, meta, imp.format, imp.ts))
+        records.append(Record(imp.input, output, imp.gold, meta, imp.format, imp.ts, _import_source(imp)))
         counts["from_imports"] += 1
     out = {
         "records": len(records),
@@ -313,7 +333,7 @@ def merge_records(records: Iterable[Record], split_path: str | None) -> tuple[li
             meta = copy.deepcopy(record.meta)
             name = None
             if split_keys:
-                name = canonical_split(_meta_pop(meta, split_keys), split_path or "meta.split")
+                name = canonical_split(_meta_pop(meta, split_keys), split_path or "meta.split", record.source)
                 if name is not None:
                     splits.append(name)
             copies[(record.origin, name)] += 1
@@ -375,17 +395,31 @@ def target_text(spec: TaskSpec, value: Any) -> str:
     return canonical_output(value, spec.json_schema)
 
 
+def _value_key(value: Any) -> bytes:
+    return canonical_json(value)
+
+
 def normalise_examples(spec: TaskSpec, examples: Iterable[Example]) -> tuple[list[Example], dict[str, Any]]:
     """Normalise teacher outputs and golds; resolve each by strict majority.
 
     Invalid outputs are dropped and counted. An example whose outputs were all invalid is dropped (never
-    relabelled), and so is one whose valid outputs have no strict majority. Examples without any output are kept
-    for teacher labelling. Invalid golds become None; conflicting golds resolve by strict majority, else None.
+    relabelled), and so is one whose valid outputs have no strict majority, unless its predefined split is test:
+    that one is kept without a teacher value (``teacher_origin = "invalid"``, never labelled), as labelling keeps a
+    test row whose answer is invalid, so the test split does not depend on the teacher's answers. ``example.votes``
+    is the number of valid outputs behind the winning value (its weight in the dedupe vote). Examples without any
+    output are kept for teacher labelling. Invalid golds become None; conflicting golds resolve by strict majority,
+    else None.
     """
     if spec.type == "classification" and not spec.labels:
         raise CurateError(f"task {spec.task}: no labels loaded")
     if spec.type == "extraction" and not spec.json_schema:
         raise CurateError(f"task {spec.task}: no JSON Schema loaded")
+    split_path = spec.curate.split.predefined
+    split_keys = meta_keys(split_path)
+
+    def predefined_test(ex: Example) -> bool:
+        return bool(split_keys) and canonical_split(meta_get(ex.meta, split_keys), split_path or "") == "test"
+
     counts: Counter[str] = Counter()
     kept: list[Example] = []
     for ex in examples:
@@ -415,21 +449,29 @@ def normalise_examples(spec: TaskSpec, examples: Iterable[Example]) -> tuple[lis
                 counts["invalid_outputs"] += 1
             else:
                 values.append(value)
-        if not values:
-            counts["dropped_all_invalid"] += 1
-            continue
         ok, winner = majority_vote(values)
         if not ok:
-            counts["dropped_no_majority"] += 1
+            reason = "all_invalid" if not values else "no_majority"
+            if predefined_test(ex):
+                counts[f"kept_test_{reason}"] += 1
+                ex.teacher = None
+                ex.teacher_origin = "invalid"
+                ex.votes = 0
+                kept.append(ex)
+            else:
+                counts[f"dropped_{reason}"] += 1
             continue
-        if len({json.dumps(v, sort_keys=True, ensure_ascii=False) for v in values}) > 1:
+        if len({_value_key(v) for v in values}) > 1:
             counts["conflicts_resolved"] += 1
         ex.teacher = winner
         ex.teacher_origin = "recorded"
+        winner_key = _value_key(winner)
+        ex.votes = sum(1 for v in values if _value_key(v) == winner_key)
         kept.append(ex)
     names = (
-        "examples", "outputs", "invalid_outputs", "dropped_all_invalid", "dropped_no_majority", "conflicts_resolved",
-        "unlabelled", "gold_invalid", "gold_conflicts_resolved", "gold_conflicts_unresolved",
+        "examples", "outputs", "invalid_outputs", "dropped_all_invalid", "dropped_no_majority", "kept_test_all_invalid",
+        "kept_test_no_majority", "conflicts_resolved", "unlabelled", "gold_invalid", "gold_conflicts_resolved",
+        "gold_conflicts_unresolved",
     )  # fmt: skip
     out: dict[str, Any] = {name: counts[name] for name in names}
     out["kept"] = len(kept)
@@ -444,6 +486,13 @@ class PiiStage:
 
     Classification values are labels from the task's own label set, not user data, so they are left as they are.
     ``examples_changed`` counts distinct examples (by input hash), however often an example is scrubbed.
+
+    A placeholder such as ``<EMAIL>`` can break an extraction field's ``format``, ``pattern``, ``enum`` or length
+    constraint, so an extraction value the scrub changed is validated against the task's JSON Schema again: a gold
+    that fails becomes None, and a teacher value that fails rejects its example (:meth:`rejected`; the caller drops
+    it), so no schema-invalid target or teacher reference is ever written. Both are counted
+    (``pii_schema_invalid``, ``pii_schema_invalid_gold``) with the fields that failed and the PII kinds found in
+    them (``pii_schema_invalid_fields``).
     """
 
     def __init__(self, spec: TaskSpec) -> None:
@@ -452,20 +501,56 @@ class PiiStage:
         self.scrubber = PiiScrubber(pii.kinds) if pii.enabled else None
         self.hits: dict[str, Counter[str]] = {"input": Counter(), "teacher": Counter(), "gold": Counter()}
         self.changed: set[str] = set()
+        #: Values the scrub made schema-invalid, by role: ``teacher`` (recorded; example rejected), ``labelled``
+        #: (answered by curate's labelling; example rejected) and ``gold`` (set to None).
+        self.schema_invalid: Counter[str] = Counter()
+        #: Per failing field: how many values of each role failed on it, and the PII kinds found in it.
+        self.invalid_fields: dict[str, Counter[str]] = {}
+        self.invalid_kinds: dict[str, Counter[str]] = {}
+        self._rejected: set[str] = set()
 
     @property
     def examples_changed(self) -> int:
         return len(self.changed)
 
-    def _value(self, value: Any, found: Counter[str]) -> Any:
+    def rejected(self, ex: Example) -> bool:
+        """True when the scrubbed teacher value of ``ex`` fails the task's JSON Schema: the caller drops ``ex``."""
+        return ex.input_hash in self._rejected
+
+    def _failing_fields(self, original: Any, scrubbed: Any) -> list[str]:
+        """The top-level fields whose scrubbed value alone makes ``original`` fail the schema (every changed field
+        when none fails alone; ``$`` when the value is not an object)."""
+        assert self.spec.json_schema is not None
+        if not isinstance(original, dict) or not isinstance(scrubbed, dict):
+            return ["$"]
+        changed = [key for key, value in scrubbed.items() if value != original.get(key)]
+        failing = [key for key in changed if validate({**original, key: scrubbed[key]}, self.spec.json_schema)]
+        return failing or changed or ["$"]
+
+    def _value(self, value: Any, role: str, found: Counter[str]) -> tuple[Any, bool]:
+        """``(scrubbed value, whether it still satisfies the task's JSON Schema)``."""
         if self.scrubber is None or value is None or self.spec.type == "classification":
-            return value
+            return value, True
         scrubbed, hits = self.scrubber.scrub_value(value)
         found.update(hits)
-        return scrubbed
+        if not hits:
+            return scrubbed, True  # unchanged: normalisation validated it
+        assert self.spec.json_schema is not None
+        if not validate(scrubbed, self.spec.json_schema):
+            return scrubbed, True
+        self.schema_invalid[role] += 1
+        for name in self._failing_fields(value, scrubbed):
+            self.invalid_fields.setdefault(name, Counter())[role] += 1
+            part = value[name] if isinstance(value, dict) and name in value else value
+            self.invalid_kinds.setdefault(name, Counter()).update(self.scrubber.scrub_value(part)[1])
+        return scrubbed, False
 
     def scrub(self, ex: Example, *, text: bool = True, teacher: bool = True, gold: bool = True) -> Counter[str]:
-        """Scrub the selected fields of ``ex`` in place; returns this call's hits per kind."""
+        """Scrub the selected fields of ``ex`` in place; returns this call's hits per kind.
+
+        A gold the scrub makes schema-invalid becomes None; a teacher value it makes schema-invalid marks ``ex`` as
+        :meth:`rejected`.
+        """
         found: dict[str, Counter[str]] = {name: Counter() for name in self.hits}
         if text:
             ex.text = ex.raw_input
@@ -473,9 +558,14 @@ class PiiStage:
                 ex.text, hits = self.scrubber.scrub(ex.raw_input)
                 found["input"].update(hits)
         if teacher:
-            ex.teacher = self._value(ex.teacher, found["teacher"])
+            role = "labelled" if ex.teacher_origin == "labelled" else "teacher"
+            ex.teacher, valid = self._value(ex.teacher, role, found["teacher"])
+            if not valid:
+                self._rejected.add(ex.input_hash)
         if gold:
-            ex.gold = self._value(ex.gold, found["gold"])
+            ex.gold, valid = self._value(ex.gold, "gold", found["gold"])
+            if not valid:
+                ex.gold = None
         total: Counter[str] = Counter()
         for name, hits in found.items():
             self.hits[name].update(hits)
@@ -496,11 +586,44 @@ class PiiStage:
             "by_field": {name: {kind: bucket[kind] for kind in kinds} for name, bucket in self.hits.items()},
             "total": sum(total.values()),
             "examples_changed": self.examples_changed,
+            "pii_schema_invalid": self.schema_invalid["teacher"] + self.schema_invalid["labelled"],
+            "pii_schema_invalid_gold": self.schema_invalid["gold"],
+            "pii_schema_invalid_fields": {
+                name: {
+                    **{role: self.invalid_fields[name][role] for role in SCHEMA_ROLES},
+                    "kinds": dict(sorted(self.invalid_kinds[name].items())),
+                }
+                for name in sorted(self.invalid_fields)
+            },
         }
 
+    def schema_warning(self, *roles: str) -> str | None:
+        """A warning about the values of ``roles`` the scrub made schema-invalid, naming the fields and the PII kinds
+        found in them, so the user can leave that kind out of ``curate.pii.kinds`` or relax the schema; None when
+        there are none."""
+        fields = {name: n for name, n in self.invalid_fields.items() if any(n[role] for role in roles)}
+        if not fields:
+            return None
+        dropped = sum(self.schema_invalid[role] for role in roles if role != "gold")
+        cleared = self.schema_invalid["gold"] if "gold" in roles else 0
+        named = ", ".join(f"{name} ({', '.join(sorted(self.invalid_kinds[name]))})" for name in sorted(fields))
+        effects = []
+        if dropped:
+            effects.append(f"{dropped} example(s) dropped (their teacher value would be an invalid target)")
+        if cleared:
+            effects.append(f"{cleared} gold value(s) set to None")
+        return (
+            f"warning: PII placeholders make values fail the task's JSON Schema in field(s) {named}: "
+            f"{' and '.join(effects)}. To keep them, leave that kind out of curate.pii.kinds or relax the field's "
+            "format, pattern, enum or length constraint"
+        )
 
-def scrub_examples(stage: PiiStage, examples: Iterable[Example]) -> dict[str, Any]:
-    """Stage 5: scrub every example's input, teacher value and gold."""
+
+def scrub_examples(stage: PiiStage, examples: Iterable[Example]) -> tuple[list[Example], dict[str, Any]]:
+    """Stage 5: scrub every example's input, teacher value and gold; drop the examples :meth:`PiiStage.rejected`."""
+    kept = []
     for ex in examples:
         stage.scrub(ex)
-    return stage.counts()
+        if not stage.rejected(ex):
+            kept.append(ex)
+    return kept, stage.counts()
