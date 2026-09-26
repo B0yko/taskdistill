@@ -603,7 +603,7 @@ def test_pii_scrub_changes_no_gold_value(docs: list[InvoiceDoc]) -> None:
 
 
 def test_quick_subsets_are_fixed_balanced_subsets_of_the_full_splits(docs: list[InvoiceDoc]) -> None:
-    assert QUICK_SIZES == {"train": 400, "valid": 60, "test": 100}
+    assert QUICK_SIZES == {"train": 120, "valid": 24, "test": 36}
     for split, size in QUICK_SIZES.items():
         subset = quick_subset(docs, split)
         assert len(subset) == size
@@ -617,16 +617,9 @@ def test_quick_subsets_are_fixed_balanced_subsets_of_the_full_splits(docs: list[
             assert int(d.id.rsplit("-", 1)[1]) < per_template[d.template]
         assert quick_subset(generate(), split) == subset
     test_counts = Counter(d.template for d in quick_subset(docs, "test"))
-    assert test_counts == {
-        "email-13": 17,
-        "email-14": 17,
-        "email-15": 17,
-        "layout-13": 17,
-        "layout-14": 16,
-        "layout-15": 16,
-    }
-    assert set(Counter(d.template for d in quick_subset(docs, "train")).values()) == {20}
-    assert set(Counter(d.template for d in quick_subset(docs, "valid")).values()) == {15}
+    assert test_counts == {t: 6 for t in SPLIT_TEMPLATES["test"]}
+    assert set(Counter(d.template for d in quick_subset(docs, "train")).values()) == {6}
+    assert set(Counter(d.template for d in quick_subset(docs, "valid")).values()) == {6}
 
 
 def test_quick_subset_rejects_unknown_split_and_short_input(docs: list[InvoiceDoc]) -> None:

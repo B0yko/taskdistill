@@ -51,7 +51,7 @@ TRAIT_RATES: dict[str, float] = {
     "quoted_reply_chain": 0.20,
     "label_typos": 0.10,
 }
-QUICK_SIZES: dict[str, int] = {"train": 400, "valid": 60, "test": 100}
+QUICK_SIZES: dict[str, int] = {"train": 120, "valid": 24, "test": 36}  # 6 per template; fits the 3-minute quick demo
 
 _FIRST_DAY = dt.date(2025, 1, 1)
 _N_DAYS = (dt.date(2027, 1, 1) - _FIRST_DAY).days
