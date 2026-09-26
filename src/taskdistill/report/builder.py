@@ -871,6 +871,20 @@ def _bench_provenance(name: str, bench: Mapping[str, Any]) -> dict[str, Any]:
     }
 
 
+def test_access_log(task: str) -> dict[str, Any]:
+    """Every scoring of the test split so far, from ``test_access_log.jsonl`` (written by ``eval --split test``)."""
+    entries = []
+    for row in _read_jsonl(_task_dir(task) / "test_access_log.jsonl"):
+        entries.append(
+            {
+                "date": row.get("date"),
+                "run_id": row.get("run_id"),
+                "command": sanitise_command(str(row["command"])) if row.get("command") else None,
+            }
+        )
+    return {"count": len(entries), "entries": entries}
+
+
 def build_cost_latency(
     spec: TaskSpec,
     ev: Mapping[str, Any] | None,
@@ -1510,7 +1524,9 @@ def build_report(
             "reason": selection.get("reason"),
             "date": selection.get("date"),
             "rule": selection.get("rule"),
+            "candidates": _relative_paths(candidates) or None,
         },
+        "test_access": test_access_log(spec.task),
         "quality": quality,
         "operating_point": operating_point,
         "cost_latency": cost_latency,

@@ -226,9 +226,17 @@ def _quality(report: Mapping[str, Any]) -> list[str]:
         ]  # fmt: skip
         lines += ["<details>", "<summary>Evaluation dates, hardware and commands</summary>", ""]
         lines += [*table(["Run", "Date", "Hardware", "Command"], prov_rows), "", "</details>", ""]
-    scorings = _num(quality.get("test_scorings"))
+    access = report.get("test_access") or {}
+    scorings = _num(access.get("count"))
+    if scorings is None:
+        scorings = _num(quality.get("test_scorings"))
     if scorings is not None:
-        lines += [f"The test split has been scored {integer(scorings)} time{'' if scorings == 1 else 's'}.", ""]
+        lines += [
+            f"The test split has been scored {integer(scorings)} time{'' if scorings == 1 else 's'} in this workspace "
+            "(`test_access_log.jsonl`), every time by an evaluation listed in the table above; nothing was chosen "
+            "with it.",
+            "",
+        ]
     return lines
 
 
