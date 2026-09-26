@@ -5,12 +5,17 @@
 strings) and, for the models it is asked about, the per-provider prices from ``GET /models/{slug}/endpoints``.
 Providers are keyed by the endpoint ``tag`` (the value ``provider.order`` accepts, e.g. ``deepinfra/fp8``). A
 model's dated ``canonical_slug`` is kept as an alias of its ``id``, since OpenRouter accepts either.
+
+The snapshot also keeps each model's maximum completion tokens per choice (``top_provider.max_completion_tokens``,
+else ``context_length``, and per endpoint ``max_completion_tokens`` else ``context_length``): the limit
+:func:`~taskdistill.ledger.reservation_cost` reserves against for a request that sets no ``max_tokens``.
 """
 
 from __future__ import annotations
 
 import json
 import logging
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
@@ -74,6 +79,30 @@ class ModelEntry(TypedDict):
     providers: dict[str, ModelPrice]
 
 
+class LimitEntry(TypedDict):
+    default: int | None
+    providers: dict[str, int]
+
+
+def _positive_int(value: Any) -> int | None:
+    return value if isinstance(value, int) and not isinstance(value, bool) and value > 0 else None
+
+
+def _model_limit(model: Mapping[str, Any]) -> int | None:
+    """A model's maximum completion tokens: ``top_provider.max_completion_tokens``, else ``context_length``."""
+    top_provider = model.get("top_provider")
+    if isinstance(top_provider, Mapping):
+        limit = _positive_int(top_provider.get("max_completion_tokens"))
+        if limit is not None:
+            return limit
+    return _positive_int(model.get("context_length"))
+
+
+def _endpoint_limit(endpoint: Mapping[str, Any]) -> int | None:
+    """One endpoint's maximum completion tokens: its own ``max_completion_tokens``, else ``context_length``."""
+    return _positive_int(endpoint.get("max_completion_tokens")) or _positive_int(endpoint.get("context_length"))
+
+
 def _today() -> str:
     return datetime.now(UTC).date().isoformat()
 
@@ -98,6 +127,10 @@ class PricingSnapshot:
     models: dict[str, ModelEntry]
     #: ``canonical_slug`` -> ``id`` for models whose dated slug differs from the id.
     aliases: dict[str, str] = field(default_factory=dict)
+    #: Maximum completion tokens per choice, by model slug; a model absent here has no known limit. Named
+    #: ``completion_limits``, not ``limits``, so a caller's own ``limits`` attribute (a subclass overriding
+    #: :meth:`max_completion_tokens` with its own lookup table) is never shadowed by this dataclass field.
+    completion_limits: dict[str, LimitEntry] = field(default_factory=dict)
 
     # construction ------------------------------------------------------------------------------
     @classmethod
@@ -115,12 +148,16 @@ class PricingSnapshot:
         When one endpoint tag appears twice, its field-wise maximum is kept.
         """
         models: dict[str, ModelEntry] = {}
+        limits: dict[str, LimitEntry] = {}
         aliases: dict[str, str] = {}
         for model in _models_list(models_json):
             slug = model.get("id")
             price = ModelPrice.from_openrouter(model.get("pricing"))
             if isinstance(slug, str) and price is not None:
                 models[slug] = {"default": price, "providers": {}}
+                model_limit = _model_limit(model)
+                if model_limit is not None:
+                    limits[slug] = {"default": model_limit, "providers": {}}
                 canonical = model.get("canonical_slug")
                 if isinstance(canonical, str) and canonical and canonical != slug:
                     aliases[canonical] = slug
@@ -128,12 +165,16 @@ class PricingSnapshot:
         for requested, endpoints_json in sorted((endpoints_json_by_slug or {}).items()):
             slug = requested if requested in models else aliases.get(requested, requested)
             providers: dict[str, ModelPrice] = {}
+            provider_limits: dict[str, int] = {}
             for endpoint in _endpoints_list(endpoints_json):
                 name = endpoint.get("tag") or endpoint.get("provider_name")
                 price = ModelPrice.from_openrouter(endpoint.get("pricing"))
                 if not isinstance(name, str) or price is None:
                     continue
                 providers[name] = ModelPrice.max_of([providers[name], price]) if name in providers else price
+                limit = _endpoint_limit(endpoint)
+                if limit is not None:
+                    provider_limits[name] = max(limit, provider_limits.get(name, limit))
             if not providers:
                 continue
             if slug in models:
@@ -143,11 +184,17 @@ class PricingSnapshot:
                     "default": ModelPrice.max_of(list(providers.values())),
                     "providers": dict(sorted(providers.items())),
                 }
+            if provider_limits or slug in limits:  # never create an empty (no default, no providers) entry
+                entry = limits.setdefault(slug, {"default": None, "providers": {}})
+                entry["providers"] = dict(sorted(provider_limits.items()))
+                if entry["default"] is None and provider_limits:
+                    entry["default"] = max(provider_limits.values())
         return cls(
             date=date or _today(),
             source=source,
             models=dict(sorted(models.items())),
             aliases=dict(sorted(aliases.items())),
+            completion_limits=dict(sorted(limits.items())),
         )
 
     # persistence -------------------------------------------------------------------------------
@@ -163,6 +210,11 @@ class PricingSnapshot:
                 for slug, entry in sorted(self.models.items())
             },
             "aliases": dict(sorted(self.aliases.items())),
+            "limits": {
+                slug: {"default": entry.get("default"), "providers": dict(sorted(entry["providers"].items()))}
+                for slug, entry in sorted(self.completion_limits.items())
+                if entry.get("default") is not None or entry.get("providers")
+            },
         }
 
     @classmethod
@@ -174,7 +226,21 @@ class PricingSnapshot:
                 "providers": {name: ModelPrice.from_json(p) for name, p in (entry.get("providers") or {}).items()},
             }
         aliases = {str(k): str(v) for k, v in (data.get("aliases") or {}).items()}
-        return cls(date=str(data["date"]), source=str(data.get("source", "")), models=models, aliases=aliases)
+        limits: dict[str, LimitEntry] = {}
+        for slug, entry in (data.get("limits") or {}).items():
+            limits[slug] = {
+                "default": _positive_int(entry.get("default")),
+                "providers": {
+                    name: value for name, value in (entry.get("providers") or {}).items() if _positive_int(value)
+                },
+            }
+        return cls(
+            date=str(data["date"]),
+            source=str(data.get("source", "")),
+            models=models,
+            aliases=aliases,
+            completion_limits=limits,
+        )
 
     def save(self, path: Path | str | None = None) -> Path:
         out = Path(path) if path is not None else paths.pricing_path()
@@ -233,6 +299,37 @@ class PricingSnapshot:
                 provider,
             )
         return entry["default"]
+
+    def max_completion_tokens(self, model: str, provider: str | None = None) -> int | None:
+        """The most completion tokens per choice ``model`` can generate, resolving aliases like :meth:`price_for`.
+
+        The pinned endpoint's limit when known, else the largest known limit for the model, else None (a model
+        or endpoint the snapshot never saw a limit for, or one that ``pricing refresh`` was not asked about).
+        Unlike :meth:`price_for`, an unknown model is not an error: the caller (a reservation) treats None as
+        "no worst case can be bounded" rather than "no price is known".
+        """
+        entry = self.completion_limits.get(model)
+        if entry is None and model in self.aliases:
+            entry = self.completion_limits.get(self.aliases[model])
+        if entry is None:
+            return None
+        providers = entry["providers"]
+        if provider and providers:
+            wanted = provider.strip().lower()
+            if provider in providers:
+                return providers[provider]
+            exact = [v for name, v in providers.items() if name.lower() == wanted]
+            if exact:
+                return max(exact)
+            if "/" not in wanted:
+                base = [v for name, v in providers.items() if name.lower().split("/", 1)[0] == wanted]
+                if base:
+                    return max(base)
+        candidates = list(providers.values())
+        default = entry.get("default")
+        if default is not None:
+            candidates.append(default)
+        return max(candidates) if candidates else None
 
 
 def _get_json(http: httpx.Client, url: str, headers: dict[str, str]) -> Any:

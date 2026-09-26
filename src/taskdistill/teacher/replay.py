@@ -273,7 +273,11 @@ class ReplayTeacher:
         return model if isinstance(model, str) else None
 
     def _lookup(self, body: Mapping[str, Any]) -> tuple[str, dict[str, Any]]:
-        key = request_key(body)
+        try:
+            key = request_key(body)
+        except ValueError as exc:
+            self.misses += 1
+            raise ReplayMiss(f"replay miss: the request cannot be keyed ({exc})") from exc
         record = self.recording.records.get(key)
         if record is None:
             self.misses += 1

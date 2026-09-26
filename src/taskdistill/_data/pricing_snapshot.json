@@ -1197,6 +1197,136 @@
     }
   },
   "date": "2026-09-26",
+  "limits": {
+    "deepseek/deepseek-v4-flash": {
+      "default": 384000,
+      "providers": {
+        "alibaba/fp8": 393216,
+        "atlas-cloud/fp4": 393216,
+        "azure/us": 384000,
+        "baidu/fp8": 131072,
+        "deepinfra/fp8": 65536,
+        "digitalocean": 384000,
+        "gmicloud/fp8": 943717,
+        "mancer/fp8": 943718,
+        "nextbit/fp8": 943718,
+        "novita/fp8": 393216,
+        "open-inference/fp8": 943718,
+        "parasail/fp8": 943718,
+        "relace/fp4": 943718,
+        "siliconflow/fp8": 393216,
+        "streamlake/fp8": 384000,
+        "venice": 32768
+      }
+    },
+    "deepseek/deepseek-v4-flash-0731": {
+      "default": 943718,
+      "providers": {
+        "alibaba": 393216,
+        "atlas-cloud/fp4": 393216,
+        "baidu/fp8": 131072,
+        "baseten/fp8": 384000,
+        "cloudflare": 1179648,
+        "cohere": 384000,
+        "coreweave/fp8": 235929,
+        "deepinfra/fp8": 384000,
+        "digitalocean": 943718,
+        "fireworks": 943718,
+        "gmicloud/fp8": 943717,
+        "inceptron/fp4": 943718,
+        "makora": 384000,
+        "mancer/fp8": 943718,
+        "morph/bf16": 943718,
+        "nebius/fp8": 921600,
+        "nextbit/fp8": 943718,
+        "novita/fp8": 393216,
+        "open-inference/fp8": 943718,
+        "parasail/fp8": 943718,
+        "phala": 393216,
+        "reka": 131072,
+        "relace/fp4": 943718,
+        "sail-research/fp4": 943718,
+        "sail-research/us": 943718,
+        "siliconflow/fp8": 393216,
+        "streamlake/fp8": 384000,
+        "together": 943718,
+        "venice": 32768,
+        "wafer/fast": 943718
+      }
+    },
+    "deepseek/deepseek-v4.1-flash": {
+      "default": 943718,
+      "providers": {
+        "alibaba": 393216,
+        "atlas-cloud/fp8": 393216,
+        "baseten/fp8": 32768,
+        "coreweave/fp8": 943718,
+        "deepinfra/fp8": 131072,
+        "deepseek": 393216,
+        "dekallm": 943718,
+        "digitalocean": 943718,
+        "fireworks": 943718,
+        "gmicloud/fp8": 943717,
+        "inference-net": 384000,
+        "krea/fp8": 943718,
+        "makora/fp8": 393216,
+        "modal": 943718,
+        "morph/fp8": 943718,
+        "nextbit/fp8": 943718,
+        "novita/fp8": 393216,
+        "open-inference/fp4": 943718,
+        "parasail/fp8": 943718,
+        "phala": 393216,
+        "relace": 943718,
+        "sail-research/fp4": 384000,
+        "siliconflow/fp8": 393216,
+        "streamlake/fp8": 384000,
+        "together": 943718,
+        "venice/fp8": 131072,
+        "wafer": 943718
+      }
+    },
+    "qwen/qwen3-235b-a22b-2507": {
+      "default": 235929,
+      "providers": {
+        "alibaba": 32768,
+        "deepinfra/fp8": 16384,
+        "gmicloud/fp8": 235929,
+        "google-vertex/us-south1": 16384,
+        "nebius/fp8": 235929,
+        "novita/fp8": 16384,
+        "parasail/fp8": 117964,
+        "streamlake": 32000,
+        "venice/fp8": 16384
+      }
+    },
+    "qwen/qwen3-30b-a3b-instruct-2507": {
+      "default": 235929,
+      "providers": {
+        "alibaba": 32768,
+        "dekallm": 235929,
+        "nebius/fp8": 235929,
+        "siliconflow/fp8": 235929,
+        "streamlake": 32000
+      }
+    },
+    "qwen/qwen3-next-80b-a3b-instruct": {
+      "default": 235929,
+      "providers": {
+        "alibaba": 32768,
+        "deepinfra/fp8": 16384,
+        "google-vertex/global": 235929,
+        "novita/bf16": 32768,
+        "parasail/fp8": 235929
+      }
+    },
+    "qwen/qwen3.7-flash": {
+      "default": 65536,
+      "providers": {
+        "alibaba": 65536
+      }
+    }
+  },
   "models": {
     "deepseek/deepseek-v4-flash": {
       "default": {

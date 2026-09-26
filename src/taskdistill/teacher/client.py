@@ -9,10 +9,26 @@ concurrent calls can never cross a cap. Accounting per attempt:
 - an attempt whose outcome is unknown (read timeout, dropped connection) may have been billed: it is
   settled at its worst case and the retry reserves again;
 - a connection that was never established (connect error or timeout, proxy failure) costs nothing;
-- a request that cannot be sent at all (base URL without an http(s) scheme, invalid header value) is not
-  retried: the reservation is released and :class:`TeacherError` raised at once.
+- a request that cannot be sent at all (base URL without an http(s) scheme, invalid header value, a client
+  closed while the call waited for a slot) is not retried: the reservation is released and
+  :class:`TeacherError` raised at once.
 
 Streams are retried the same way until their first byte is passed on; after that a failure ends the stream.
+
+The worst case must bound what the request sent can cost. A body without ``max_tokens`` (and without
+``max_completion_tokens``) is reserved at the model's maximum completion length from the pricing snapshot, and
+refused with :class:`~taskdistill.ledger.UnboundedCompletion` when the snapshot does not know it; the body is
+sent as given, never with a smaller limit than the one reserved. ``max_tokens_default`` instead adds a limit to
+such bodies (and reserves that).
+
+Every :class:`TeacherError` a call raises carries ``charged_usd``: what the ledger charged for the call's
+attempts before it failed (0.0 when every reservation was released). A result's ``cost_usd`` likewise covers
+every attempt of the call, not only the one that answered. A call cancelled by a caller's deadline raises no
+:class:`TeacherError` to carry it, so :meth:`LiveTeacher.last_charged_usd` reports, per request key, what the
+latest call that ended was charged, however it ended.
+
+The body is sent as the compact UTF-8 JSON httpx itself would write, except that a lone UTF-16 surrogate (a string
+cut inside an emoji; UTF-8 cannot encode it) is sent as its JSON escape ``\\udXXX`` rather than failing to encode.
 
 Ledger and cache calls are synchronous SQLite transactions of a few milliseconds; keeping them off worker
 threads means a cancelled call can never leave a reservation half-recorded.
@@ -30,6 +46,7 @@ import logging
 import math
 import random
 import time
+from collections import OrderedDict
 from collections.abc import AsyncIterator, Iterable, Mapping
 from typing import Any, Literal
 
@@ -37,7 +54,7 @@ import click
 import httpx
 import numpy as np
 
-from taskdistill.ledger import Ledger, choice_count, completion_limit, worst_case_cost
+from taskdistill.ledger import Ledger, choice_count, completion_limit, reservation_cost
 from taskdistill.teacher.base import TeacherError, TeacherHTTPError, TeacherResult, TeacherTimeout
 from taskdistill.teacher.cache import ResponseCache, request_context
 from taskdistill.teacher.pricing import ModelPrice, PricingSnapshot
@@ -52,6 +69,14 @@ _UNSENT = (httpx.ConnectError, httpx.ConnectTimeout, httpx.PoolTimeout, httpx.Pr
 #: Failures where the request could not be sent at all: a configuration error, never retried.
 _UNSENDABLE = (httpx.UnsupportedProtocol, httpx.LocalProtocolError, httpx.InvalidURL)
 DEFAULT_SPEND_THRESHOLD = 0.50
+#: Batch defaults (curate, bake-off, demo labelling): seconds per HTTP timeout, retries, longest Retry-After honoured.
+DEFAULT_TIMEOUT_S = 60.0
+DEFAULT_MAX_RETRIES = 5
+DEFAULT_RETRY_AFTER_MAX_S = 60.0
+#: Attribute a raised :class:`TeacherError` carries: the USD the ledger charged for the call before it failed.
+CHARGED_ATTR = "charged_usd"
+#: How many request keys :meth:`LiveTeacher.last_charged_usd` remembers (the least recently ended are dropped).
+CHARGES_REMEMBERED = 4096
 
 # Indirections so tests can control time without touching the event loop.
 _sleep = asyncio.sleep
@@ -60,6 +85,53 @@ _clock = time.perf_counter
 
 class SpendNotConfirmed(click.ClickException):
     """A live batch's projected cost is above the threshold and ``--yes`` was not given."""
+
+
+def charged_usd(exc: BaseException) -> float | None:
+    """What the ledger charged for a failed live call (``exc.charged_usd``); None when the error does not say."""
+    value = getattr(exc, CHARGED_ATTR, None)
+    return float(value) if isinstance(value, int | float) and not isinstance(value, bool) else None
+
+
+class _Charge:
+    """The USD settled so far for one call, over all its attempts."""
+
+    __slots__ = ("usd",)
+
+    def __init__(self) -> None:
+        self.usd = 0.0
+
+
+def _with_charge(exc: TeacherError, charge: _Charge) -> TeacherError:
+    setattr(exc, CHARGED_ATTR, charge.usd)
+    return exc
+
+
+def model_max_completion_tokens(pricing: PricingSnapshot, model: str, provider: str | None = None) -> int | None:
+    """The most completion tokens per choice ``model`` can generate, when the pricing snapshot records it.
+
+    Read through ``pricing.max_completion_tokens(model, provider)``, which answers like ``price_for``: the pinned
+    provider's limit, else the largest over the endpoints routing may pick. A snapshot without that lookup, or
+    without a limit for ``model``, gives None (and the call is refused rather than reserved at a guess).
+    """
+    lookup = getattr(pricing, "max_completion_tokens", None)
+    if not callable(lookup):
+        return None
+    try:
+        value = lookup(model, provider)
+    except KeyError:
+        return None
+    return value if isinstance(value, int) and not isinstance(value, bool) and value > 0 else None
+
+
+def encode_body(body: Mapping[str, Any]) -> bytes:
+    """The request bytes: compact JSON, UTF-8, a lone surrogate written as its JSON escape (see the module doc).
+
+    The same bytes httpx writes for ``json=body`` whenever that can be encoded. :class:`ValueError` for NaN or
+    an infinity, which JSON cannot carry.
+    """
+    text = json.dumps(body, ensure_ascii=False, separators=(",", ":"), allow_nan=False)
+    return text.encode("utf-8", errors="backslashreplace")
 
 
 def pinned_provider(body: Mapping[str, Any]) -> str | None:
@@ -190,13 +262,13 @@ class LiveTeacher:
         cache: ResponseCache | None = None,
         run_cap: float | None = None,
         task_cap: float | None = None,
-        timeout: float = 60.0,
-        max_retries: int = 5,
+        timeout: float = DEFAULT_TIMEOUT_S,
+        max_retries: int = DEFAULT_MAX_RETRIES,
         max_tokens_default: int | None = None,
         transport: httpx.AsyncBaseTransport | None = None,
         backoff_base: float = 0.5,
         backoff_max: float = 20.0,
-        retry_after_max: float = 60.0,
+        retry_after_max: float = DEFAULT_RETRY_AFTER_MAX_S,
         rng: random.Random | None = None,
     ) -> None:
         if concurrency < 1:
@@ -225,6 +297,7 @@ class LiveTeacher:
         self._loop: asyncio.AbstractEventLoop | None = None
         self._client: httpx.AsyncClient | None = None
         self._semaphore: asyncio.Semaphore | None = None
+        self._charges: OrderedDict[str, float] = OrderedDict()
 
     # plumbing ----------------------------------------------------------------------------------
     def _bind(self) -> tuple[httpx.AsyncClient, asyncio.Semaphore]:
@@ -261,15 +334,52 @@ class LiveTeacher:
         return out, injected
 
     def _cache_ref(self, body: Mapping[str, Any]) -> tuple[str, str, dict[str, Any]]:
-        """Request key and cache context of the caller's body (as capture and replay see it), and the body to send."""
+        """Request key and cache context of the caller's body (as capture and replay see it), and the body to send.
+
+        :class:`TeacherError` when the body holds a number JSON cannot carry (NaN, an infinity).
+        """
         send, injected = self._prepare(body, stream=False)
-        return request_key(body), request_context(body, max_tokens_default=injected), send
+        try:
+            return request_key(body), request_context(body, max_tokens_default=injected), send
+        except ValueError as exc:
+            raise TeacherError(f"the teacher request is not valid JSON: {exc}") from exc
+
+    @staticmethod
+    def _encode(body: Mapping[str, Any]) -> bytes:
+        """:func:`encode_body`; a body JSON cannot carry (NaN, an infinity, a non-JSON value) is a
+        :class:`TeacherError`. It runs before anything is reserved, so such a body is never charged."""
+        try:
+            return encode_body(body)
+        except (ValueError, TypeError) as exc:
+            raise TeacherError(f"the teacher request is not valid JSON: {exc}") from exc
+
+    def _remember(self, key: str | None, charge: _Charge) -> None:
+        if key is None:
+            return
+        self._charges[key] = charge.usd
+        self._charges.move_to_end(key)
+        while len(self._charges) > CHARGES_REMEMBERED:
+            self._charges.popitem(last=False)
+
+    def last_charged_usd(self, key: str) -> float | None:
+        """What the ledger charged, over all attempts, for the latest call of request ``key`` that has ended.
+
+        It covers every way a call ends: an answer (its ``cost_usd``), a :class:`TeacherError` (its
+        ``charged_usd``), a cancellation (a caller's deadline; an attempt on the wire is settled at its worst
+        case, a call still waiting for a slot costs 0.0) and a stream closed early. None when no call of ``key``
+        has ended yet (or it is older than the last :data:`CHARGES_REMEMBERED` keys). When calls of one key
+        overlap, the one that ended last is reported.
+        """
+        return self._charges.get(key)
 
     def is_cached(self, body: Mapping[str, Any]) -> bool:
         """True when :meth:`complete` would answer ``body`` from the cache, i.e. without a teacher call."""
         if self.cache is None:
             return False
-        key, context, _ = self._cache_ref(body)
+        try:
+            key, context, _ = self._cache_ref(body)
+        except TeacherError:
+            return False
         return self.cache.get(key, context) is not None
 
     def _price(self, body: Mapping[str, Any]) -> tuple[str, str | None, ModelPrice]:
@@ -281,6 +391,20 @@ class LiveTeacher:
             return model, provider, self.pricing.price_for(model, provider)
         except KeyError as exc:
             raise TeacherError(str(exc.args[0]) if exc.args else str(exc)) from exc
+
+    def _worst_case(self, body: Mapping[str, Any], model: str, pinned: str | None, price: ModelPrice) -> float:
+        """The reservation for sending ``body`` as is (:func:`~taskdistill.ledger.reservation_cost`).
+
+        A body without a completion limit is bounded by the model's maximum completion tokens from the pricing
+        snapshot, else refused with :class:`UnboundedCompletion`: it is never sent under a smaller reservation.
+        A :class:`TeacherError` also when ``tools``, ``functions`` or a message's tool calls hold NaN or an
+        infinity (the request key does not cover those fields).
+        """
+        limit = None if completion_limit(body) is not None else model_max_completion_tokens(self.pricing, model, pinned)
+        try:
+            return reservation_cost(body, price, model=model, max_completion_tokens=limit)
+        except ValueError as exc:
+            raise TeacherError(f"the teacher request is not valid JSON: {exc}") from exc
 
     def _settle_price(self, model: str, served_by: Any, pinned: str | None, reserved: ModelPrice) -> ModelPrice:
         """Price of the provider that served the call when the snapshot knows it, else the reserved price."""
@@ -304,6 +428,10 @@ class LiveTeacher:
             request_key=key,
         )
 
+    def _settle(self, res_id: int, amount: float, charge: _Charge) -> None:
+        self.ledger.settle(res_id, amount)
+        charge.usd += amount
+
     @staticmethod
     def _unsendable(url: str, exc: Exception) -> TeacherError:
         # The exception text is left out: for an invalid header value it may quote the API key.
@@ -311,6 +439,18 @@ class LiveTeacher:
             f"the teacher request to {url} cannot be sent ({type(exc).__name__}); "
             "check the teacher base URL and API key. Nothing was charged and the call was not retried."
         )
+
+    @staticmethod
+    def _closed(url: str) -> TeacherError:
+        return TeacherError(
+            f"the teacher request to {url} was not sent: the teacher client was closed while the call waited "
+            "(the batch it belonged to was stopped). Nothing was charged."
+        )
+
+    @staticmethod
+    def _closed_client_error(client: httpx.AsyncClient, exc: RuntimeError) -> bool:
+        """True for httpx's refusal to send on a closed client: raised before any byte leaves the process."""
+        return client.is_closed and "client has been closed" in str(exc)
 
     def _backoff(self, attempt: int, retry_after: str | None) -> float:
         """Retry-After when the server sent one (capped), else exponential backoff with full jitter."""
@@ -324,18 +464,28 @@ class LiveTeacher:
         """Answer one chat-completions body: from the cache when configured, else a budgeted live call.
 
         The request key is computed on ``body`` as given, before ``max_tokens_default`` is applied, so it equals
-        the key capture and replay compute for the same body.
+        the key capture and replay compute for the same body. A :class:`TeacherError` carries ``charged_usd``, and
+        :meth:`last_charged_usd` reports the charge however the call ends (also when it is cancelled).
         """
-        key, context, send = self._cache_ref(body)
-        if self.cache is not None:
-            hit = self.cache.get(key, context)
-            if hit is not None:
-                return hit
-        model, pinned, price = self._price(send)
-        worst = worst_case_cost(send, price)
-        client, semaphore = self._bind()
-        async with semaphore:
-            result = await self._call(client, send, key, model, pinned, price, worst)
+        charge = _Charge()
+        key: str | None = None
+        try:
+            key, context, send = self._cache_ref(body)
+            if self.cache is not None:
+                hit = self.cache.get(key, context)
+                if hit is not None:
+                    return hit
+            model, pinned, price = self._price(send)
+            worst = self._worst_case(send, model, pinned, price)
+            content = self._encode(send)
+            client, semaphore = self._bind()
+            async with semaphore:
+                result = await self._call(client, send, content, key, model, pinned, price, worst, charge)
+        except TeacherError as exc:
+            _with_charge(exc, charge)
+            raise
+        finally:
+            self._remember(key, charge)
         if self.cache is not None:
             self.cache.put(result, context)
         return result
@@ -344,11 +494,13 @@ class LiveTeacher:
         self,
         client: httpx.AsyncClient,
         body: dict[str, Any],
+        content: bytes,
         key: str,
         model: str,
         pinned: str | None,
         price: ModelPrice,
         worst: float,
+        charge: _Charge,
     ) -> TeacherResult:
         url = f"{self.base_url}/chat/completions"
         res_id: int | None = None
@@ -356,13 +508,15 @@ class LiveTeacher:
         attempts = 0
         try:
             while True:
+                if client.is_closed:
+                    raise self._closed(url)
                 if res_id is None:
                     res_id = self._reserve(worst, model, key)
                 attempts += 1
                 start = _clock()
                 in_flight = True
                 try:
-                    resp = await client.post(url, json=body, headers=self._headers())
+                    resp = await client.post(url, content=content, headers=self._headers())
                 except _UNSENDABLE as exc:
                     in_flight = False
                     self.ledger.release(res_id)
@@ -371,7 +525,7 @@ class LiveTeacher:
                 except httpx.TransportError as exc:
                     in_flight = False
                     if not isinstance(exc, _UNSENT):
-                        self.ledger.settle(res_id, worst)
+                        self._settle(res_id, worst, charge)
                         res_id = None
                     if attempts > self.max_retries:
                         raise TeacherTimeout(
@@ -379,6 +533,11 @@ class LiveTeacher:
                         ) from exc
                     await _sleep(self._backoff(attempts, None))
                     continue
+                except RuntimeError as exc:
+                    if not self._closed_client_error(client, exc):
+                        raise
+                    in_flight = False
+                    raise self._closed(url) from exc
                 latency_ms = (_clock() - start) * 1000.0
                 in_flight = False
                 status = resp.status_code
@@ -392,7 +551,7 @@ class LiveTeacher:
                 except ValueError:
                     data = None
                 if not isinstance(data, dict):
-                    self.ledger.settle(res_id, worst)
+                    self._settle(res_id, worst, charge)
                     res_id = None
                     raise TeacherHTTPError(status, resp.text)
                 raw_choices = data.get("choices")
@@ -409,7 +568,7 @@ class LiveTeacher:
                     if cost is None and not choices:
                         self.ledger.release(res_id)
                     else:
-                        self.ledger.settle(res_id, worst if cost is None else cost)
+                        self._settle(res_id, worst if cost is None else cost, charge)
                     res_id = None
                     code = error.get("code") if isinstance(error, dict) else None
                     code = code if isinstance(code, int) and 400 <= code < 600 else 502
@@ -420,14 +579,14 @@ class LiveTeacher:
                 if cost is None:
                     log.warning("teacher response for %s has no usage; charging its worst case", key[:12])
                     cost = worst
-                self.ledger.settle(res_id, cost)
+                self._settle(res_id, cost, charge)
                 res_id = None
-                return self._result(body, key, data, choice, usage, latency_ms, cost, attempts)
+                return self._result(body, key, data, choice, usage, latency_ms, charge.usd, attempts)
         finally:
             if res_id is not None:
                 # Cancelled while a request was on the wire: its charge is unknown. Otherwise nothing was billed.
                 if in_flight:
-                    self.ledger.settle(res_id, worst)
+                    self._settle(res_id, worst, charge)
                 else:
                     self.ledger.release(res_id)
 
@@ -485,73 +644,93 @@ class LiveTeacher:
         :meth:`complete` (the reservation is kept across attempts that cost nothing). Once bytes have been
         passed on, a failure ends the stream with :class:`TeacherTimeout`. The reservation is settled with the
         ``usage`` of the final chunk when the stream carried one, also when the consumer stops reading early
-        (e.g. at ``[DONE]``), else at its worst case.
+        (e.g. at ``[DONE]``), else at its worst case. A :class:`TeacherError` carries ``charged_usd``, and once the
+        stream has ended or been closed, :meth:`last_charged_usd` reports what it was charged.
         """
-        key = request_key(body)
-        send, _ = self._prepare(body, stream=True)
-        model, pinned, price = self._price(send)
-        worst = worst_case_cost(send, price)
-        url = f"{self.base_url}/chat/completions"
-        client, semaphore = self._bind()
-        async with semaphore:
-            res_id: int | None = None
-            in_flight = False
-            yielded = False
-            attempts = 0
-            scanner = _SSEScanner()
+        charge = _Charge()
+        key: str | None = None
+        try:
             try:
-                while True:
-                    if res_id is None:
-                        res_id = self._reserve(worst, model, key)
-                    attempts += 1
-                    scanner = _SSEScanner()
-                    status, text, retry_after = 0, "", None
-                    in_flight = True
-                    try:
-                        async with client.stream("POST", url, json=send, headers=self._headers()) as resp:
-                            status = resp.status_code
-                            if 200 <= status < 300:
-                                async for chunk in resp.aiter_raw():
-                                    scanner.feed(chunk)
-                                    yielded = True
-                                    yield chunk
-                                break
+                key = request_key(body)
+            except ValueError as exc:
+                raise TeacherError(f"the teacher request is not valid JSON: {exc}") from exc
+            send, _ = self._prepare(body, stream=True)
+            model, pinned, price = self._price(send)
+            worst = self._worst_case(send, model, pinned, price)
+            content = self._encode(send)
+            url = f"{self.base_url}/chat/completions"
+            client, semaphore = self._bind()
+            async with semaphore:
+                res_id: int | None = None
+                in_flight = False
+                yielded = False
+                attempts = 0
+                scanner = _SSEScanner()
+                try:
+                    while True:
+                        if client.is_closed:
+                            raise self._closed(url)
+                        if res_id is None:
+                            res_id = self._reserve(worst, model, key)
+                        attempts += 1
+                        scanner = _SSEScanner()
+                        status, text, retry_after = 0, "", None
+                        in_flight = True
+                        try:
+                            async with client.stream("POST", url, content=content, headers=self._headers()) as resp:
+                                status = resp.status_code
+                                if 200 <= status < 300:
+                                    async for chunk in resp.aiter_raw():
+                                        scanner.feed(chunk)
+                                        yielded = True
+                                        yield chunk
+                                    break
+                                in_flight = False
+                                retry_after = resp.headers.get("retry-after")
+                                text = (await resp.aread()).decode("utf-8", "replace")
+                        except _UNSENDABLE as exc:
                             in_flight = False
-                            retry_after = resp.headers.get("retry-after")
-                            text = (await resp.aread()).decode("utf-8", "replace")
-                    except _UNSENDABLE as exc:
-                        in_flight = False
-                        self.ledger.release(res_id)
-                        res_id = None
-                        raise self._unsendable(url, exc) from exc
-                    except httpx.TransportError as exc:
-                        if yielded:
-                            raise TeacherTimeout(f"teacher stream broke off ({type(exc).__name__})") from exc
-                        if in_flight and not isinstance(exc, _UNSENT):
-                            self.ledger.settle(res_id, worst)
+                            self.ledger.release(res_id)
                             res_id = None
-                        in_flight = False
-                        if attempts > self.max_retries:
-                            raise TeacherTimeout(
-                                f"teacher {self.base_url} did not start the stream after {attempts} attempts "
-                                f"({type(exc).__name__})"
-                            ) from exc
-                        delay = self._backoff(attempts, None)
-                    else:
-                        if not ((status in RETRY_STATUSES or status >= 500) and attempts <= self.max_retries):
-                            raise TeacherHTTPError(status, text)
-                        delay = self._backoff(attempts, retry_after)
-                    await _sleep(delay)
-            finally:
-                if res_id is not None:
-                    if in_flight:
-                        charge = None
-                        if scanner.usage:
-                            settle_price = self._settle_price(model, scanner.provider, pinned, price)
-                            charge = usage_cost(scanner.usage, settle_price)
-                        self.ledger.settle(res_id, worst if charge is None else charge)
-                    else:
-                        self.ledger.release(res_id)
+                            raise self._unsendable(url, exc) from exc
+                        except httpx.TransportError as exc:
+                            if yielded:
+                                raise TeacherTimeout(f"teacher stream broke off ({type(exc).__name__})") from exc
+                            if in_flight and not isinstance(exc, _UNSENT):
+                                self._settle(res_id, worst, charge)
+                                res_id = None
+                            in_flight = False
+                            if attempts > self.max_retries:
+                                raise TeacherTimeout(
+                                    f"teacher {self.base_url} did not start the stream after {attempts} attempts "
+                                    f"({type(exc).__name__})"
+                                ) from exc
+                            delay = self._backoff(attempts, None)
+                        except RuntimeError as exc:
+                            if yielded or status or not self._closed_client_error(client, exc):
+                                raise
+                            in_flight = False
+                            raise self._closed(url) from exc
+                        else:
+                            if not ((status in RETRY_STATUSES or status >= 500) and attempts <= self.max_retries):
+                                raise TeacherHTTPError(status, text)
+                            delay = self._backoff(attempts, retry_after)
+                        await _sleep(delay)
+                finally:
+                    if res_id is not None:
+                        if in_flight:
+                            amount = None
+                            if scanner.usage:
+                                settle_price = self._settle_price(model, scanner.provider, pinned, price)
+                                amount = usage_cost(scanner.usage, settle_price)
+                            self._settle(res_id, worst if amount is None else amount, charge)
+                        else:
+                            self.ledger.release(res_id)
+        except TeacherError as exc:
+            _with_charge(exc, charge)
+            raise
+        finally:
+            self._remember(key, charge)
 
     async def aclose(self) -> None:
         if self._client is not None:

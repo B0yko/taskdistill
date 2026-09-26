@@ -253,6 +253,6 @@ def test_the_packaged_pricing_snapshot_loads_and_prices_the_candidates(tmp_path:
     assert set(data["capabilities"]) == set(snapshot.models)
 
 
-def test_new_run_id_is_the_command_and_a_utc_timestamp() -> None:
+def test_new_run_id_is_the_command_a_utc_timestamp_and_a_random_suffix() -> None:
     run_id = new_run_id("bakeoff")
-    assert re.fullmatch(r"bakeoff-\d{8}T\d{6}", run_id)
+    assert re.fullmatch(r"bakeoff-\d{8}T\d{6}-[0-9a-f]{6}", run_id)

@@ -344,6 +344,18 @@ def test_replay_miss_is_a_hard_error(recording_path: Path, spec: TaskSpec) -> No
     assert teacher.misses == 1
 
 
+def test_a_body_that_cannot_be_keyed_is_a_replay_miss_not_a_crash(recording_path: Path, spec: TaskSpec) -> None:
+    """request_key() raises ValueError on NaN/Infinity; replay reports it as a miss like any other unkeyable body."""
+    teacher = ReplayTeacher(recording_path, spec)
+    unkeyable = {**build_teacher_request(spec, "How do I close my account?"), "temperature": float("nan")}
+    with pytest.raises(ReplayMiss, match="cannot be keyed"):
+        asyncio.run(teacher.complete(unkeyable))
+    assert teacher.misses == 1
+    with pytest.raises(ReplayMiss, match="cannot be keyed"):
+        asyncio.run(_collect(teacher.stream(unkeyable)))
+    assert teacher.misses == 2
+
+
 def test_replay_ignores_fields_outside_the_key(recording_path: Path, spec: TaskSpec, body: dict[str, Any]) -> None:
     teacher = ReplayTeacher(recording_path, spec)
     result = asyncio.run(teacher.complete({**body, "stream": False, "user": "u-1", "provider": {"order": ["x"]}}))

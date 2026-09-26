@@ -7,10 +7,13 @@ among the packaged demo recordings (``taskdistill/_data/demos/<task>/teacher_rec
 from __future__ import annotations
 
 import json
+import secrets
+from collections.abc import Mapping
 from datetime import UTC, datetime
 from importlib import resources
 from importlib.resources.abc import Traversable
 from pathlib import Path
+from types import MappingProxyType
 from typing import Literal, get_args
 
 from taskdistill import paths
@@ -18,7 +21,7 @@ from taskdistill.config import TaskSpec
 from taskdistill.ledger import Ledger
 from taskdistill.teacher.base import TeacherError, TeacherSource
 from taskdistill.teacher.cache import ResponseCache
-from taskdistill.teacher.client import LiveTeacher
+from taskdistill.teacher.client import DEFAULT_MAX_RETRIES, DEFAULT_RETRY_AFTER_MAX_S, DEFAULT_TIMEOUT_S, LiveTeacher
 from taskdistill.teacher.pricing import PricingError, PricingSnapshot
 from taskdistill.teacher.replay import ReplayTeacher, load_recording
 
@@ -26,6 +29,20 @@ Mode = Literal["live", "replay"]
 MODES: tuple[str, ...] = get_args(Mode)
 RECORDING_NAME = "teacher_recording.jsonl.gz"
 PRICING_SNAPSHOT_NAME = "pricing_snapshot.json"
+
+#: The retry policy of the ``serve`` phase, the one place it is defined. ``serve`` escalates interactive
+#: requests, and a failed escalation falls back to the student answer, so its teacher gives up quickly: 10 s
+#: per HTTP timeout and one retry, before which a server's ``Retry-After`` is honoured for at most 2 s (a longer
+#: hint is cut to 2 s, then the retry is made). A hung teacher is thus given up after about 22 s, inside serve's
+#: 30 s deadline for the whole call. Batch phases (curate, bake-off, demo labelling) keep the client's patient
+#: defaults.
+SERVE_TIMEOUT_S = 10.0
+SERVE_MAX_RETRIES = 1
+SERVE_RETRY_AFTER_MAX_S = 2.0
+#: The serve policy as :func:`make_teacher` keyword arguments (what ``make_teacher`` applies for ``phase="serve"``).
+SERVE_TEACHER_KNOBS: Mapping[str, float | int] = MappingProxyType(
+    {"timeout": SERVE_TIMEOUT_S, "max_retries": SERVE_MAX_RETRIES, "retry_after_max": SERVE_RETRY_AFTER_MAX_S}
+)
 
 
 class TeacherUnavailable(TeacherError):
@@ -126,6 +143,9 @@ def make_teacher(
     concurrency: int = 8,
     pricing: PricingSnapshot | None = None,
     cache: ResponseCache | None = None,
+    timeout: float | None = None,
+    max_retries: int | None = None,
+    retry_after_max: float | None = None,
 ) -> TeacherSource:
     """Build the teacher source for ``mode``.
 
@@ -133,6 +153,11 @@ def make_teacher(
     budgeted client on the workspace ledger, with the response cache unless ``use_cache`` is false (``serve``
     never reads the cache), the task cap from ``budget.usd_cap`` and ``run_cap`` from ``--max-usd``; it needs a
     teacher API key. ``cache`` replaces the workspace response cache (the bake-off keeps its own).
+
+    ``timeout`` (seconds per HTTP timeout), ``max_retries`` and ``retry_after_max`` (the longest ``Retry-After``
+    honoured, in seconds) default by phase: :data:`SERVE_TIMEOUT_S`, :data:`SERVE_MAX_RETRIES` and
+    :data:`SERVE_RETRY_AFTER_MAX_S` for ``serve``, whose failed escalations fall back to the student, and the
+    client's batch defaults otherwise.
     """
     if mode == "replay":
         source = find_recording(spec.task)
@@ -147,6 +172,13 @@ def make_teacher(
     api_key = spec.teacher.api_key()
     if api_key is None:
         raise TeacherUnavailable(f"live teacher calls need an API key: set {_key_hint(spec)}")
+    serve = phase == "serve"
+    if timeout is None:
+        timeout = SERVE_TIMEOUT_S if serve else DEFAULT_TIMEOUT_S
+    if max_retries is None:
+        max_retries = SERVE_MAX_RETRIES if serve else DEFAULT_MAX_RETRIES
+    if retry_after_max is None:
+        retry_after_max = SERVE_RETRY_AFTER_MAX_S if serve else DEFAULT_RETRY_AFTER_MAX_S
     return LiveTeacher(
         spec.teacher.base_url,
         api_key,
@@ -159,9 +191,16 @@ def make_teacher(
         run_cap=run_cap,
         task_cap=spec.budget.usd_cap,
         concurrency=concurrency,
+        timeout=timeout,
+        max_retries=max_retries,
+        retry_after_max=retry_after_max,
     )
 
 
 def new_run_id(command: str) -> str:
-    """``<command>-<UTC yyyymmddThhmmss>``."""
-    return f"{command}-{datetime.now(UTC):%Y%m%dT%H%M%S}"
+    """``<command>-<UTC yyyymmddThhmmss>-<6 random hex digits>``: unique per invocation.
+
+    The ledger sums the ``--max-usd`` run cap by run id, so two commands started in the same second must never
+    share one.
+    """
+    return f"{command}-{datetime.now(UTC):%Y%m%dT%H%M%S}-{secrets.token_hex(3)}"

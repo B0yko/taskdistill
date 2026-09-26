@@ -147,7 +147,7 @@ def test_rows_cached_under_another_provider_are_skipped(tmp_path: Path, spec: Ta
     cache = ResponseCache(tmp_path / "cache.sqlite")
     cache.put(result_for(body_other, "card_arrival", 0), request_context(body_other))
 
-    with pytest.raises(RecordingError, match="1 of them are cached under another provider or reasoning setting"):
+    with pytest.raises(RecordingError, match="1 of them are cached or captured under another provider or reasoning"):
         build_recording(spec, keys=[request_key(body_other)], out=tmp_path / "rec.jsonl.gz", cache=cache)
     manifest = build_recording(
         other, keys=[request_key(body_other)], out=tmp_path / "other.jsonl.gz", cache=cache, pricing_date="x"

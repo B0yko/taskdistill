@@ -10,6 +10,10 @@ Three caps apply, and a call that would cross any of them is refused with :class
 - the global cap ``TASKDISTILL_BUDGET_USD`` (default 5.00) over everything in the ledger;
 - the optional per-task cap ``budget.usd_cap`` over the task's spend;
 - the optional per-command cap ``--max-usd`` over the spend of one run.
+
+A reservation must bound what the request sent can cost: :func:`reservation_cost` refuses (with
+:class:`UnboundedCompletion`) a body that sets no completion limit when the model's maximum completion length is
+not known either, instead of assuming a limit the teacher never receives.
 """
 
 from __future__ import annotations
@@ -35,7 +39,7 @@ log = logging.getLogger("taskdistill.ledger")
 
 ENV_BUDGET = "TASKDISTILL_BUDGET_USD"
 DEFAULT_BUDGET_USD = 5.00
-#: Completion bound used when a request sets no ``max_tokens``.
+#: Completion bound a *projection* assumes for a request that sets no ``max_tokens``; never reserved for a call.
 DEFAULT_MAX_TOKENS = 4096
 #: Per-message allowance added to the prompt byte count (role, separators, chat-template tokens).
 PER_MESSAGE_TOKENS = 16
@@ -62,6 +66,10 @@ CREATE INDEX IF NOT EXISTS ledger_status ON ledger(status);
 
 #: Committed spend of a row: the settled amount, or the reserved amount while the reservation is open.
 _COMMITTED = "COALESCE(SUM(CASE status WHEN 'settled' THEN actual_nusd WHEN 'open' THEN reserved_nusd ELSE 0 END), 0)"
+
+
+class UnboundedCompletion(BudgetExceeded):
+    """A call sets no completion limit and the model's maximum is unknown, so no worst case bounds its cost."""
 
 
 class Price(Protocol):
@@ -129,11 +137,21 @@ def _positive_int(value: Any) -> int | None:
     return value if isinstance(value, int) and not isinstance(value, bool) and value > 0 else None
 
 
+def _utf8_bytes(text: str) -> int:
+    """UTF-8 length of ``text``, a lone UTF-16 surrogate (which UTF-8 cannot encode) counted as 3 bytes.
+
+    A client that cut a string inside a surrogate pair sends such a character as a JSON escape; however the
+    provider decodes it (dropped, or U+FFFD, itself 3 bytes), it is never more than 3 tokens.
+    """
+    return len(text.encode("utf-8", errors="surrogatepass"))
+
+
 def prompt_upper_bound(body: Mapping[str, Any]) -> int:
     """Prompt token upper bound: UTF-8 bytes of every message's content plus 16 per message.
 
     Tool definitions (``tools``, ``functions``) and assistant ``tool_calls``/``function_call`` are billed as
-    prompt tokens too, so the UTF-8 bytes of their canonical JSON are added when a body carries them.
+    prompt tokens too, so the UTF-8 bytes of their canonical JSON are added when a body carries them. Any string
+    has a bound, a lone surrogate included; :class:`ValueError` only for NaN or an infinity in those JSON fields.
     """
     messages = body.get("messages") or []
     total = _json_bytes(body.get("tools")) + _json_bytes(body.get("functions"))
@@ -141,7 +159,7 @@ def prompt_upper_bound(body: Mapping[str, Any]) -> int:
         if not isinstance(message, Mapping):
             total += PER_MESSAGE_TOKENS
             continue
-        total += len(_content_text(message.get("content")).encode("utf-8")) + PER_MESSAGE_TOKENS
+        total += _utf8_bytes(_content_text(message.get("content"))) + PER_MESSAGE_TOKENS
         total += _json_bytes(message.get("tool_calls")) + _json_bytes(message.get("function_call"))
     return total
 
@@ -160,18 +178,44 @@ def choice_count(body: Mapping[str, Any]) -> int:
     return _positive_int(body.get("n")) or 1
 
 
-def completion_upper_bound(body: Mapping[str, Any]) -> int:
-    """``max_tokens`` (or ``max_completion_tokens``, else :data:`DEFAULT_MAX_TOKENS`) times ``n``."""
-    return (completion_limit(body) or DEFAULT_MAX_TOKENS) * choice_count(body)
+def completion_upper_bound(body: Mapping[str, Any], max_completion_tokens: int | None = None) -> int:
+    """The per-choice completion limit times ``n``.
+
+    The limit is ``max_tokens`` (or ``max_completion_tokens``); for a body without one, the model's
+    ``max_completion_tokens`` when given, else :data:`DEFAULT_MAX_TOKENS` (a projection estimate only: a call
+    is reserved through :func:`reservation_cost`, which never assumes it).
+    """
+    limit = completion_limit(body) or _positive_int(max_completion_tokens) or DEFAULT_MAX_TOKENS
+    return limit * choice_count(body)
 
 
-def worst_case_cost(body: Mapping[str, Any], price: Price) -> float:
+def worst_case_cost(body: Mapping[str, Any], price: Price, *, max_completion_tokens: int | None = None) -> float:
     """The most a chat-completions call can cost.
 
-    Prompt bound x prompt price + completion bound x completion price + the per-request fee. A token is
-    never shorter than one UTF-8 byte, so the byte count bounds the prompt tokens of any byte-level BPE.
+    Prompt bound x prompt price + completion bound (:func:`completion_upper_bound`) x completion price + the
+    per-request fee. A token is never shorter than one UTF-8 byte, so the byte count bounds the prompt tokens of
+    any byte-level BPE.
     """
-    return prompt_upper_bound(body) * price.prompt + completion_upper_bound(body) * price.completion + price.request
+    completion = completion_upper_bound(body, max_completion_tokens)
+    return prompt_upper_bound(body) * price.prompt + completion * price.completion + price.request
+
+
+def reservation_cost(
+    body: Mapping[str, Any], price: Price, *, model: str | None = None, max_completion_tokens: int | None = None
+) -> float:
+    """The worst case to reserve before sending ``body`` exactly as given.
+
+    Like :func:`worst_case_cost`, but a body that sets no completion limit is bounded only by the model's
+    ``max_completion_tokens``: without it the teacher may generate any length, so the call is refused with
+    :class:`UnboundedCompletion` rather than reserved at a guess.
+    """
+    if completion_limit(body) is None and _positive_int(max_completion_tokens) is None:
+        raise UnboundedCompletion(
+            f"teacher call refused (model {model}): the request sets no max_tokens and the pricing snapshot has no "
+            "maximum completion length for the model, so no worst case bounds its cost; set max_tokens (or "
+            "max_completion_tokens) in the request"
+        )
+    return worst_case_cost(body, price, max_completion_tokens=max_completion_tokens)
 
 
 class Ledger:
