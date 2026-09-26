@@ -21,9 +21,11 @@ from taskdistill import paths
 from taskdistill.bench import BenchError, run_bench
 from taskdistill.config import TaskSpec
 from taskdistill.curate.extract import input_hash
-from taskdistill.ledger import Ledger
+from taskdistill.ledger import Ledger, worst_case_cost
 from taskdistill.store import Store
 from taskdistill.teacher.client import SpendNotConfirmed
+from taskdistill.teacher.pricing import ModelPrice, PricingSnapshot
+from taskdistill.teacher.requests import build_teacher_request
 
 TASK = "bench-intents"
 URL = "http://127.0.0.1:8000"
@@ -379,6 +381,85 @@ def test_max_usd_reached_during_warmup_fails(home: Path) -> None:
     with pytest.raises(BenchError, match="during the warm-up"):
         run_bench(URL, spec, n=5, warmup=4, yes=True, max_usd=0.1, store=store, client=server.client())
     assert len(server.seen) == 2
+
+
+def _price_teacher(request_fee: float) -> None:
+    """A pricing snapshot in the workspace that bounds every teacher call by ``request_fee``."""
+    PricingSnapshot(
+        date="2026-09-26",
+        source="test",
+        models={"vendor/model-a": {"default": ModelPrice(0.0, 0.0, request_fee), "providers": {}}},
+    ).save()
+
+
+def _serve_spend() -> float:
+    return Ledger().spent(task=TASK, phase="serve")
+
+
+def test_max_usd_stops_before_a_request_that_could_cross_it(home: Path) -> None:
+    spec, store, _ = _workspace(12)
+    _price_teacher(0.03)  # one teacher call costs at most $0.03
+    server = FakeServer(route=lambda _: ("teacher", "low_confidence", None), cost_per_escalation=0.03)
+    result = run_bench(URL, spec, n=10, warmup=0, yes=True, max_usd=0.05, store=store, client=server.client())
+    assert len(server.seen) == 1  # a second request could bring the spend to $0.06
+    assert result["n"] == 1
+    assert result["spend_usd"] == pytest.approx(0.03) and result["spend_usd"] <= 0.05
+    assert result["stopped"].startswith("--max-usd 0.05 would be crossed")
+    assert "next request up to $0.030000" in result["stopped"]
+    assert "stopped after 1 requests" in result["stopped"]
+    assert result["stopped"] in result["notes"]
+
+
+def test_max_usd_bound_is_the_request_worst_case(home: Path) -> None:
+    spec, store, queries = _workspace(6)
+    price = ModelPrice(1e-4, 1e-3)
+    PricingSnapshot(
+        date="2026-09-26", source="test", models={"vendor/model-a": {"default": price, "providers": {}}}
+    ).save()
+    worst = [worst_case_cost(build_teacher_request(spec, q), price) for q in queries]
+    cap = worst[0] + worst[1] - 1e-6  # the first request fits, the second could cross the cap
+    server = FakeServer(route=lambda _: ("teacher", "low_confidence", None), cost_per_escalation=worst[0] / 2)
+    result = run_bench(URL, spec, n=5, warmup=0, yes=True, max_usd=cap, store=store, client=server.client())
+    # after $worst[0]/2, the second request's worst case still fits; after twice that, the third one does not
+    assert worst[0] / 2 + worst[1] <= cap < worst[0] + worst[2]
+    assert len(server.seen) == 2
+    assert result["spend_usd"] == pytest.approx(worst[0]) and result["spend_usd"] <= cap
+
+
+def test_max_usd_bound_is_at_least_the_most_one_request_has_cost(home: Path) -> None:
+    """A request can cost more than one call's worst case (the server retried a call that timed out)."""
+    spec, store, _ = _workspace(12)
+    _price_teacher(0.01)
+    server = FakeServer(route=lambda _: ("teacher", "low_confidence", None), cost_per_escalation=0.03)
+    result = run_bench(URL, spec, n=10, warmup=0, yes=True, max_usd=0.05, store=store, client=server.client())
+    assert len(server.seen) == 1
+    assert result["spend_usd"] == pytest.approx(0.03)
+
+
+def test_max_usd_without_a_price_uses_the_most_one_request_has_cost(home: Path) -> None:
+    spec, store, _ = _workspace(12)  # no snapshot prices vendor/model-a
+    server = FakeServer(route=lambda _: ("teacher", "low_confidence", None), cost_per_escalation=0.03)
+    result = run_bench(URL, spec, n=10, warmup=0, yes=True, max_usd=0.05, store=store, client=server.client())
+    assert len(server.seen) == 1
+    assert result["spend_usd"] == pytest.approx(0.03)
+    assert any("no price for the teacher model vendor/model-a" in note for note in result["notes"])
+
+
+def test_max_usd_is_not_crossed_during_the_warm_up(home: Path) -> None:
+    spec, store, _ = _workspace(10)
+    _price_teacher(0.03)
+    server = FakeServer(route=lambda _: ("teacher", "low_confidence", None), cost_per_escalation=0.03)
+    with pytest.raises(BenchError, match=r"--max-usd 0\.05 would be crossed .* during the warm-up, after 1 requests"):
+        run_bench(URL, spec, n=5, warmup=4, yes=True, max_usd=0.05, store=store, client=server.client())
+    assert len(server.seen) == 1
+    assert _serve_spend() == pytest.approx(0.03)
+
+
+def test_max_usd_leaves_student_answers_alone_while_they_cost_nothing(home: Path) -> None:
+    spec, store, _ = _workspace(12)
+    _price_teacher(0.03)
+    result = run_bench(URL, spec, n=10, warmup=2, max_usd=0.05, store=store, client=FakeServer().client())
+    assert result["n"] == 10 and result["stopped"] is None
 
 
 def test_rows_without_raw_input_are_skipped_and_reported(home: Path) -> None:

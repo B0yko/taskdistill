@@ -7,12 +7,17 @@ teacher (``x-taskdistill-teacher: replay``) fails the bench at once, so recorded
 The server must serve the bench's task. Spend is the ledger delta of the ``serve`` phase of the task in this workspace,
 so the server must share it: when live teacher answers arrive but that delta stays at 0, the spend cannot be measured,
 so the projection needs ``--yes``, ``--max-usd`` fails (it cannot be enforced) and ``spend_usd`` is null.
+``--max-usd`` is checked before every request: the bench stops (during the warm-up: fails) when the spend so far plus
+the most that request can cost would cross the cap. That bound is the worst case of one teacher call for the request's
+body at the pricing snapshot's price for the teacher (what the server's ledger reserves), or the largest amount one
+request has added to the spend so far when that is more or the snapshot has no price for the teacher.
 The JSON is always written to ``$TASKDISTILL_HOME/<task>/bench/`` (where ``report`` finds it), and to ``out`` too.
 """
 
 from __future__ import annotations
 
 import json
+import math
 import os
 import time
 from collections import Counter
@@ -28,9 +33,11 @@ import numpy as np
 from taskdistill import paths
 from taskdistill.config import TaskSpec
 from taskdistill.hardware import hardware_info, machine_state
-from taskdistill.ledger import Ledger
+from taskdistill.ledger import Ledger, worst_case_cost
 from taskdistill.store import Store
-from taskdistill.teacher.client import DEFAULT_SPEND_THRESHOLD, SpendNotConfirmed, confirm_spend
+from taskdistill.teacher.client import DEFAULT_SPEND_THRESHOLD, SpendNotConfirmed, confirm_spend, pinned_provider
+from taskdistill.teacher.factory import load_pricing
+from taskdistill.teacher.pricing import PricingError, PricingSnapshot
 from taskdistill.teacher.requests import build_teacher_request
 
 TOKEN_ENV = "TASKDISTILL_SERVER_TOKEN"
@@ -205,6 +212,56 @@ def _summary(values: list[float]) -> dict[str, Any]:
     }
 
 
+def _nano(usd: float) -> int:
+    return round(usd * 1e9)
+
+
+class _SpendCap:
+    """``--max-usd``, checked before every request: the spend so far plus the most the next request can cost.
+
+    A request escalates to at most one teacher call, bounded by the worst case the server's ledger reserves for its
+    body at the pricing snapshot's price. The bound is raised to the largest amount one request has added to the
+    spend so far (a call whose timed-out attempts the server retried is charged for each of them), and is that
+    amount alone when the snapshot cannot price the teacher.
+    """
+
+    def __init__(self, spec: TaskSpec, max_usd: float) -> None:
+        self.max_usd = max_usd
+        self.model = spec.teacher.model
+        self.largest = 0.0
+        self.pricing: PricingSnapshot | None = None
+        #: Why the snapshot cannot bound a request (None when it can).
+        self.unpriced: str | None = None
+        try:
+            pricing = load_pricing()
+            pricing.price_for(self.model, spec.teacher.provider)
+        except PricingError as exc:
+            self.unpriced = f"the pricing snapshot is not readable ({exc})"
+        except KeyError:
+            self.unpriced = f"the pricing snapshot has no price for the teacher model {self.model}"
+        else:
+            self.pricing = pricing
+
+    def observe(self, added: float) -> None:
+        """Record what one request added to the spend."""
+        self.largest = max(self.largest, added)
+
+    def bound(self, body: Mapping[str, Any]) -> float:
+        """The most sending ``body`` can add to the spend."""
+        bound = self.largest
+        if self.pricing is not None:
+            price = self.pricing.price_for(self.model, pinned_provider(body))
+            bound = max(bound, worst_case_cost(body, price))
+        return bound
+
+    def refuse(self, spent: float, body: Mapping[str, Any]) -> str | None:
+        """Why ``body`` must not be sent with ``spent`` already spent (None when it fits under the cap)."""
+        bound = self.bound(body)
+        if spent < self.max_usd and _nano(spent) + math.ceil(bound * 1e9 - 1e-6) <= _nano(self.max_usd):
+            return None
+        return f"--max-usd {self.max_usd:g} would be crossed (${spent:.6f} spent, next request up to ${bound:.6f})"
+
+
 def _command(url: str, spec: TaskSpec, n: int, warmup: int, yes: bool, max_usd: float | None) -> str:
     parts = ["taskdistill", "bench", "--url", url, "--task", spec.task, "--n", str(n), "--warmup", str(warmup)]
     if yes:
@@ -271,6 +328,12 @@ def run_bench(
         spent_start = _serve_spent(ledger, spec.task)
         sent = 0
         live_answers = 0
+        cap = _SpendCap(spec, max_usd) if max_usd is not None else None
+        if cap is not None and cap.unpriced is not None:
+            notes.append(
+                f"--max-usd bounds each request by the most one request has cost so far: {cap.unpriced}, so the "
+                "first charged request is not bounded"
+            )
 
         def spent_now() -> float:
             spent = _serve_spent(ledger, spec.task) - spent_start
@@ -281,23 +344,40 @@ def run_bench(
                 )
             return spent
 
-        for index, (_, raw) in enumerate(inputs[:warmup]):
-            result = _send(http, endpoint, build_teacher_request(spec, raw), headers)
+        def refused(body: Mapping[str, Any]) -> str | None:
+            """Why the cap forbids sending ``body`` now (None without a cap or when it fits)."""
+            return None if cap is None else cap.refuse(spent_now(), body)
+
+        def send(body: dict[str, Any], index: int) -> dict[str, Any]:
+            nonlocal sent, live_answers
+            before = _serve_spent(ledger, spec.task) if cap is not None else 0.0
+            result = _send(http, endpoint, body, headers)
             sent += 1
+            if cap is not None:
+                cap.observe(_serve_spent(ledger, spec.task) - before)
             _check_live(result, index)
             live_answers += _live_answer(result)
-            if max_usd is not None and spent_now() >= max_usd:
-                raise BenchError(f"--max-usd {max_usd:g} was reached during the warm-up, after {sent} requests")
+            return result
+
+        for index, (_, raw) in enumerate(inputs[:warmup]):
+            body = build_teacher_request(spec, raw)
+            reason = refused(body)
+            if reason is not None:
+                raise BenchError(f"{reason}; stopped during the warm-up, after {sent} requests")
+            send(body, index)
 
         state = machine_state()
         requests: list[dict[str, Any]] = []
         projection: dict[str, Any] | None = None
         stopped: str | None = None
         for offset, (input_hash, raw) in enumerate(inputs[warmup : warmup + n_timed]):
-            result = _send(http, endpoint, build_teacher_request(spec, raw), headers)
-            sent += 1
-            _check_live(result, warmup + offset)
-            live_answers += _live_answer(result)
+            body = build_teacher_request(spec, raw)
+            reason = refused(body)
+            if reason is not None:
+                stopped = f"{reason}; stopped after {sent} requests"
+                notes.append(stopped)
+                break
+            result = send(body, warmup + offset)
             requests.append({"i": offset, "input_hash": input_hash, **result})
             spent = spent_now()
             if projection is None and offset + 1 == PROJECTION_SAMPLE and n_timed > PROJECTION_SAMPLE:
@@ -318,10 +398,6 @@ def run_bench(
                         f"{_unmeasured_reason(live_answers)}; the spend of the remaining requests cannot be "
                         "projected. Run the bench with the server's TASKDISTILL_HOME, or re-run with --yes to confirm"
                     )
-            if max_usd is not None and spent >= max_usd:
-                stopped = f"--max-usd {max_usd:g} reached after {sent} requests (${spent:.4f})"
-                notes.append(stopped)
-                break
         state_after = machine_state()
     finally:
         if own_client:

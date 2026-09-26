@@ -18,14 +18,19 @@
 5. A failed teacher call returns the student's answer with route ``student-fallback`` when
    ``cascade.on_teacher_error`` is ``student`` and a student answer exists, else a 502. A replay miss is always
    a 502: the recording does not hold the request, and replay never falls back. A passed-through stream that
-   breaks off ends with an SSE ``error`` event and is logged with status 502.
+   breaks off ends with an SSE ``error`` event and is logged with status 502. With ``teacher_deadline_s`` set,
+   a teacher that has not answered (or, for a passed-through stream, sent its first byte) within that many
+   seconds, retries and the wait for a free connection included, counts as a teacher timeout.
 
 Every response carries ``x-taskdistill-route`` (``student``, ``teacher``, ``student-fallback``, or ``error``),
 ``x-taskdistill-confidence`` whenever the student ran, and ``x-taskdistill-reason`` and ``x-taskdistill-teacher``
 (``live`` or ``replay``) whenever the teacher was involved. Every authenticated request is logged to the store
 (401s are only counted in ``/metrics``, so unauthenticated clients cannot grow the store); a logging failure
-never fails the request. ``student_ms`` is the generation time, without the wait for the model worker; a
-replayed escalation is logged at a teacher cost of 0, since nothing was spent.
+never fails the request. ``student_ms`` is the generation time, without the wait for the model worker. The
+logged teacher cost is what the ledger charged for the request's teacher call, every attempt included: the cost
+of an answer, and for a passed-through stream or a failed call the charge the teacher reports (``charged_usd``
+on its error, else its ``last_charged_usd`` record; null when it keeps neither). A replayed escalation is logged
+at a teacher cost of 0, since nothing was spent.
 """
 
 from __future__ import annotations
@@ -143,15 +148,41 @@ def _int(value: Any) -> int | None:
     return value if isinstance(value, int) and not isinstance(value, bool) else None
 
 
-def _cost(usage: Mapping[str, Any]) -> float | None:
-    cost = usage.get("cost")
-    if isinstance(cost, int | float) and not isinstance(cost, bool) and math.isfinite(cost):
-        return float(cost)
+def _amount(value: Any) -> float | None:
+    """``value`` as a USD amount: a finite, non-negative number, else None."""
+    if isinstance(value, int | float) and not isinstance(value, bool) and math.isfinite(value) and value >= 0:
+        return float(value)
     return None
+
+
+def _cost(usage: Mapping[str, Any]) -> float | None:
+    return _amount(usage.get("cost"))
+
+
+async def _aclose(iterator: AsyncIterator[bytes]) -> None:
+    """Close a teacher stream (a live stream settles its ledger reservation when closed)."""
+    aclose = getattr(iterator, "aclose", None)
+    if aclose is not None:
+        try:
+            await aclose()
+        except Exception as exc:
+            log.warning("closing the teacher stream failed: %s", type(exc).__name__)
 
 
 def _json_bytes(obj: Any) -> bytes:
     return json.dumps(obj, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+
+
+def _reject_non_finite(constant: str) -> Any:
+    """``json.loads(..., parse_constant=...)``: NaN and the infinities are not valid JSON, so refuse them here
+    rather than let them reach :func:`~taskdistill.teacher.request_key.request_key` or the ledger later."""
+    raise ValueError(f"the number {constant} is not valid JSON")
+
+
+def _parse_request_body(raw: bytes) -> Any:
+    """The request body as JSON; NaN, Infinity and -Infinity (which Python's ``json`` accepts by default,
+    unlike the JSON standard) raise :class:`ValueError` like any other malformed body."""
+    return json.loads(raw, parse_constant=_reject_non_finite)
 
 
 def _error_body(status: int, message: str, kind: str) -> dict[str, Any]:
@@ -254,6 +285,7 @@ class _Cascade:
         store: Store,
         token: str | None,
         run_id: str | None,
+        teacher_deadline_s: float | None = None,
     ) -> None:
         self.spec = spec
         self.worker = worker
@@ -262,6 +294,8 @@ class _Cascade:
         self.store = store
         self.token = token
         self.run_id = run_id
+        #: Seconds a teacher call may take up to its answer (or first streamed byte); None waits for the teacher.
+        self.teacher_deadline_s = teacher_deadline_s
         self.metrics = ServeMetrics()
         self.model_id = f"taskdistill/{spec.task}"
         #: Replayed escalations cost nothing, so they are logged at a teacher cost of 0 (not the recorded cost).
@@ -321,7 +355,7 @@ class _Cascade:
     async def handle(self, request: Request, served: _Served) -> Response:
         raw = await request.body()
         try:
-            body: Any = json.loads(raw)
+            body: Any = _parse_request_body(raw)
         except (ValueError, RecursionError):
             return self.error(served, 400, "the request body is not valid JSON", "invalid_request_error")
         if not isinstance(body, dict):
@@ -337,7 +371,13 @@ class _Cascade:
         else:
             try:
                 input_text = extract_input(body, self.spec.input)
-            except InputUnparsed:
+            except Exception as exc:
+                # InputUnparsed is the documented case; any other failure (a malformed content part the
+                # extractor did not anticipate) is treated the same way rather than as a server error.
+                if not isinstance(exc, InputUnparsed):
+                    log.warning(
+                        "extract_input failed on a request body; treated as input_unparsed: %s", type(exc).__name__
+                    )
                 reason = "input_unparsed"
             else:
                 started = time.perf_counter()
@@ -369,22 +409,52 @@ class _Cascade:
         teacher_body["model"] = self.spec.teacher.model
         raw_mode = raw_escalation(self.spec, reason)
         started = time.perf_counter()
+        # The deadline covers the whole call (the wait for a free connection, every attempt and backoff) up to
+        # the answer, or up to the first byte of a passed-through stream; hitting it is a teacher timeout.
+        if stream and raw_mode:
+            chunks: AsyncIterator[bytes] | None = None
+            try:
+                with anyio.fail_after(self.teacher_deadline_s):
+                    chunks = self.teacher.stream(teacher_body)
+                    first = await anext(chunks, b"")
+            except TEACHER_FAILURES as exc:
+                if chunks is not None:
+                    await _aclose(chunks)
+                return self.escalation_failed(served, exc, teacher_body, body, prediction, stream, started)
+            served.route = "teacher"
+            served.deferred = True
+            return self.relay(first, chunks, served, started, teacher_body)
         try:
-            if stream and raw_mode:
-                chunks = self.teacher.stream(teacher_body)
-                first = await anext(chunks, b"")
-                served.route = "teacher"
-                served.deferred = True
-                return self.relay(first, chunks, served, started)
-            result = await self.teacher.complete(teacher_body)
+            with anyio.fail_after(self.teacher_deadline_s):
+                result = await self.teacher.complete(teacher_body)
         except TEACHER_FAILURES as exc:
-            served.teacher_ms = (time.perf_counter() - started) * 1000.0
-            key = request_key(teacher_body) if isinstance(exc, ReplayMiss) else None
-            return self.teacher_failed(served, exc, body, prediction, stream, key=key)
+            return self.escalation_failed(served, exc, teacher_body, body, prediction, stream, started)
         elapsed = time.perf_counter() - started
         served.teacher_ms = elapsed * 1000.0
         self.metrics.teacher_latency.observe(elapsed)
         return self.teacher_answer(served, body, result, stream, raw_mode)
+
+    def escalation_failed(
+        self,
+        served: _Served,
+        exc: BaseException,
+        teacher_body: Mapping[str, Any],
+        body: Mapping[str, Any],
+        prediction: Prediction | None,
+        stream: bool,
+        started: float,
+    ) -> Response:
+        served.teacher_ms = (time.perf_counter() - started) * 1000.0
+        # A failed live call can still have been charged: attempts that timed out on the wire, or the one on the
+        # wire when the deadline cancelled the call, are settled at their worst case.
+        served.teacher_cost_usd = self.teacher_charge(teacher_body, exc)
+        key: str | None = None
+        if isinstance(exc, ReplayMiss):
+            try:
+                key = request_key(teacher_body)
+            except ValueError:
+                key = None
+        return self.teacher_failed(served, exc, body, prediction, stream, key=key)
 
     def teacher_answer(
         self, served: _Served, body: Mapping[str, Any], result: TeacherResult, stream: bool, raw_mode: bool
@@ -433,11 +503,20 @@ class _Cascade:
         kind_name = "replay_miss" if kind == "replay_miss" else "teacher_error"
         return self.error(served, 502, _teacher_error_message(exc, kind, key), kind_name)
 
-    def relay(self, first: bytes, rest: AsyncIterator[bytes], served: _Served, started: float) -> Response:
+    def relay(
+        self,
+        first: bytes,
+        rest: AsyncIterator[bytes],
+        served: _Served,
+        started: float,
+        teacher_body: Mapping[str, Any],
+    ) -> Response:
         """Pass the teacher's SSE bytes through; the request is logged once the stream is over.
 
         The status line has gone out with the first byte, so a teacher failure after it ends the stream with
-        an SSE ``error`` event (OpenAI clients raise on it) and is logged with status 502.
+        an SSE ``error`` event (OpenAI clients raise on it) and is logged with status 502. The logged cost is
+        what the ledger settled once the teacher stream was closed (:meth:`teacher_charge`); a teacher that keeps
+        no record of it is logged at the stream's ``usage.cost``.
         """
         scanner = _SSEUsage()
 
@@ -467,23 +546,42 @@ class _Cascade:
         stream = body()
 
         async def cleanup() -> None:
+            # Closing the teacher stream first makes a live teacher settle its reservation before it is read.
             for generator in (stream, rest):
-                aclose = getattr(generator, "aclose", None)
-                if aclose is not None:
-                    try:
-                        await aclose()
-                    except Exception as exc:
-                        log.warning("closing the teacher stream failed: %s", type(exc).__name__)
+                await _aclose(generator)
             elapsed = time.perf_counter() - started
             served.teacher_ms = elapsed * 1000.0
             if served.teacher_error is None:
                 self.metrics.teacher_latency.observe(elapsed)
             served.prompt_tokens = _int(scanner.usage.get("prompt_tokens"))
             served.completion_tokens = _int(scanner.usage.get("completion_tokens"))
-            served.teacher_cost_usd = 0.0 if self.replaying else _cost(scanner.usage)
+            charge = self.teacher_charge(teacher_body)
+            served.teacher_cost_usd = charge if charge is not None else _cost(scanner.usage)
             await self.finish(served)
 
         return _RelayResponse(stream, cleanup, {**served.headers(), **SSE_HEADERS})
+
+    def teacher_charge(self, body: Mapping[str, Any], exc: BaseException | None = None) -> float | None:
+        """What the ledger charged for the teacher call of ``body`` that just ended (0 for a replay; None: unknown).
+
+        The ``charged_usd`` of a failed call's error, else the teacher's own record of the latest call of the
+        request key (``last_charged_usd``; a live teacher keeps it however the call ended: answered, failed,
+        cancelled by the deadline or, for a stream, closed).
+        """
+        if self.replaying:
+            return 0.0
+        if exc is not None:
+            charged = _amount(getattr(exc, "charged_usd", None))
+            if charged is not None:
+                return charged
+        last_charged = getattr(self.teacher, "last_charged_usd", None)
+        if not callable(last_charged):
+            return None
+        try:
+            return _amount(last_charged(request_key(body)))
+        except Exception as error:
+            log.warning("reading the teacher's charge failed: %s", type(error).__name__)
+            return None
 
     async def finish(self, served: _Served) -> None:
         """Count the request and log it to the store (a logging failure is only a warning)."""
@@ -544,19 +642,24 @@ def create_app(
     store: Store,
     token: str | None = None,
     run_id: str | None = None,
+    teacher_deadline_s: float | None = None,
 ) -> FastAPI:
     """Build the cascade server.
 
     The app starts ``worker`` and waits for the model at startup (a load failure fails the startup with
     :class:`ModelLoadError`), and stops the worker and closes ``teacher`` at shutdown. With ``token`` set,
-    every endpoint requires ``Authorization: Bearer <token>``.
+    every endpoint requires ``Authorization: Bearer <token>``. With ``teacher_deadline_s`` set, an escalation
+    whose teacher has not answered (or started its passed-through stream) within that many seconds is handled
+    as a teacher timeout (``student-fallback`` under ``on_teacher_error: student``).
     """
     _check_spec(spec)
     if math.isnan(threshold) or threshold < 0:
         raise ValueError(f"threshold must be a number >= 0 (math.inf escalates everything), got {threshold!r}")
     if token is not None and not token:
         raise ValueError("token must be a non-empty string or None")
-    cascade = _Cascade(spec, worker, teacher, threshold, store, token, run_id)
+    if teacher_deadline_s is not None and not (math.isfinite(teacher_deadline_s) and teacher_deadline_s > 0):
+        raise ValueError(f"teacher_deadline_s must be a positive number of seconds or None, got {teacher_deadline_s!r}")
+    cascade = _Cascade(spec, worker, teacher, threshold, store, token, run_id, teacher_deadline_s)
 
     @asynccontextmanager
     async def lifespan(_: FastAPI) -> AsyncIterator[None]:

@@ -23,13 +23,14 @@ from fastapi.testclient import TestClient
 from taskdistill.backends.fake import FakeBackend
 from taskdistill.backends.types import Generation
 from taskdistill.config import TaskSpec
-from taskdistill.ledger import Ledger
+from taskdistill.ledger import Ledger, worst_case_cost
 from taskdistill.serve.app import ModelLoadError, create_app, render, unsupported_feature
 from taskdistill.serve.worker import ModelNotReady, ModelWorker
 from taskdistill.store import Store
 from taskdistill.teacher.base import (
     BudgetExceeded,
     ReplayMiss,
+    TeacherError,
     TeacherHTTPError,
     TeacherResult,
     TeacherTimeout,
@@ -169,6 +170,7 @@ def serve(store: Store) -> Serve:
         token: str | None = None,
         run_id: str | None = "run-1",
         app_store: Any = None,
+        teacher_deadline_s: float | None = None,
     ) -> Iterator[TestClient]:
         model = backend if backend is not None else FakeBackend(answers=ANSWERS)
         worker = ModelWorker(lambda: model, spec=spec)
@@ -180,6 +182,7 @@ def serve(store: Store) -> Serve:
             store=app_store if app_store is not None else store,
             token=token,
             run_id=run_id,
+            teacher_deadline_s=teacher_deadline_s,
         )
         with TestClient(app) as client:
             yield client
@@ -406,6 +409,28 @@ def test_unparsed_input_goes_to_the_teacher(serve: Serve) -> None:
     assert resp.headers["x-taskdistill-reason"] == "input_unparsed"
     assert "x-taskdistill-confidence" not in resp.headers
     assert backend.calls == []
+
+
+def test_any_extract_input_failure_is_treated_as_input_unparsed(
+    serve: Serve, store: Store, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Defence in depth: not only the documented InputUnparsed, in case extract_input meets a body it cannot
+    handle that it did not anticipate (curate/extract.py's own extractor is the primary fix for that)."""
+    import taskdistill.serve.app as app_module
+
+    def broken(*_args: Any, **_kwargs: Any) -> str:
+        raise TypeError("an unanticipated content shape")
+
+    monkeypatch.setattr(app_module, "extract_input", broken)
+    spec = make_spec()
+    teacher = FakeTeacher("card_arrival")
+    with serve(spec, teacher) as client:
+        resp = client.post("/v1/chat/completions", json=chat(SURE))
+    assert resp.status_code == 200
+    assert resp.headers["x-taskdistill-route"] == "teacher"
+    assert resp.headers["x-taskdistill-reason"] == "input_unparsed"
+    [row] = store.iter_served(spec.task)
+    assert (row.route, row.reason, row.status) == ("teacher", "input_unparsed", 200)
 
 
 def test_regex_input_is_extracted_or_escalated(serve: Serve) -> None:
@@ -809,6 +834,29 @@ def test_replay_miss_is_a_502_even_with_student_fallback(serve: Serve) -> None:
     assert "--live" not in error["message"] and ".." not in error["message"]
 
 
+def test_a_replay_miss_still_gives_a_clean_502_when_the_body_cannot_be_rekeyed(
+    serve: Serve, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Defence in depth: even if request_key() cannot key the escalated body, the error names it 'unknown'
+    rather than the whole request failing with a 500 (the request itself is rejected long before this now)."""
+    import taskdistill.serve.app as app_module
+
+    real_request_key = app_module.request_key
+
+    def unkeyable_for_the_teacher(body: dict[str, Any]) -> str:
+        if body.get("model") == TEACHER:
+            raise ValueError("simulated: not valid JSON")
+        return real_request_key(body)
+
+    monkeypatch.setattr(app_module, "request_key", unkeyable_for_the_teacher)
+    teacher = FakeTeacher(mode="replay", error=ReplayMiss("replay miss: request key abc is not in the recording"))
+    with serve(make_spec(), teacher) as client:
+        resp = client.post("/v1/chat/completions", json=chat(UNSURE))
+    assert resp.status_code == 502
+    assert resp.json()["error"]["type"] == "replay_miss"
+    assert "key unknown" in resp.json()["error"]["message"]
+
+
 def test_replay_teacher_answers_recorded_requests_and_refuses_others(serve: Serve, tmp_path: Path) -> None:
     spec = make_spec()
     recorded = build_teacher_request(spec, UNSURE)
@@ -876,6 +924,21 @@ def test_token_is_required_when_configured(serve: Serve, store: Store) -> None:
     assert [r.status_code for r in others] == [401, 401, 401]
     assert authed.status_code == 200
     assert [row.status for row in store.iter_served("support-intents")] == [200]
+
+
+def test_a_body_with_a_non_finite_number_is_rejected_at_parse_time(serve: Serve, store: Store) -> None:
+    """NaN/Infinity are not valid JSON; a body carrying one is a 400, not a 500 once it reaches request_key()."""
+    spec = make_spec()
+    teacher = FakeTeacher()
+    body = b'{"model":"gpt-4o-mini","messages":[{"role":"user","content":"hi"}],"temperature":NaN}'
+    with serve(spec, teacher) as client:
+        resp = client.post("/v1/chat/completions", content=body, headers={"content-type": "application/json"})
+    assert resp.status_code == 400
+    assert resp.json()["error"]["type"] == "invalid_request_error"
+    assert resp.headers["x-taskdistill-route"] == "error"
+    assert teacher.bodies == []  # never escalated
+    [row] = store.iter_served(spec.task)
+    assert row.status == 400
 
 
 def test_no_token_needed_without_one(serve: Serve) -> None:
@@ -1046,9 +1109,294 @@ def test_create_app_rejects_bad_arguments(store: Store) -> None:
             create_app(spec, worker=worker, teacher=FakeTeacher(), threshold=threshold, store=store)
     with pytest.raises(ValueError, match="token"):
         create_app(spec, worker=worker, teacher=FakeTeacher(), threshold=0.5, store=store, token="")
+    for deadline in (0.0, -1.0, math.nan, math.inf):
+        with pytest.raises(ValueError, match="teacher_deadline_s"):
+            create_app(
+                spec, worker=worker, teacher=FakeTeacher(), threshold=0.5, store=store, teacher_deadline_s=deadline
+            )
     spec.labels = []
     with pytest.raises(ValueError, match="labels"):
         create_app(spec, worker=worker, teacher=FakeTeacher(), threshold=0.5, store=store)
+
+
+# the logged teacher cost is what the ledger charged ------------------------------------------------
+
+
+def charged(error: TeacherError, usd: float) -> TeacherError:
+    """``error`` as a live teacher raises it after charging ``usd`` (attempts that timed out on the wire)."""
+    error.charged_usd = usd  # type: ignore[attr-defined]
+    return error
+
+
+@pytest.mark.parametrize(("on_teacher_error", "route"), [("student", "student-fallback"), ("error", "error")])
+def test_a_failed_live_escalation_logs_what_the_ledger_charged(
+    serve: Serve, store: Store, on_teacher_error: str, route: str
+) -> None:
+    spec = make_spec(cascade={"on_teacher_error": on_teacher_error})
+    error = charged(TeacherTimeout("teacher did not answer after 6 attempts (ReadTimeout)"), 0.00087)
+    with serve(spec, FakeTeacher(error=error)) as client:
+        resp = client.post("/v1/chat/completions", json=chat(UNSURE))
+    assert resp.headers["x-taskdistill-route"] == route
+    assert resp.headers["x-taskdistill-teacher-error"] == "timeout"
+    [row] = store.iter_served(spec.task)
+    assert (row.route, row.reason, row.teacher_mode) == (route, "low_confidence", "live")
+    assert row.teacher_cost_usd == pytest.approx(0.00087)
+
+
+def test_a_raw_stream_that_fails_before_its_first_byte_logs_its_charge(serve: Serve, store: Store) -> None:
+    spec = make_spec(cascade={"escalation_response": "raw"})
+    teacher = FakeTeacher(error=charged(TeacherTimeout("did not start the stream"), 0.000145))
+    with serve(spec, teacher) as client:
+        resp = client.post("/v1/chat/completions", json=chat(UNSURE, stream=True))
+    assert resp.headers["x-taskdistill-route"] == "student-fallback"
+    [row] = store.iter_served(spec.task)
+    assert row.teacher_cost_usd == pytest.approx(0.000145)
+
+
+def test_a_failed_replayed_escalation_is_logged_at_no_cost(serve: Serve, store: Store) -> None:
+    teacher = FakeTeacher(mode="replay", error=ReplayMiss("replay miss: request key abc is not in the recording"))
+    with serve(make_spec(), teacher) as client:
+        assert client.post("/v1/chat/completions", json=chat(UNSURE)).status_code == 502
+    [row] = store.iter_served("support-intents")
+    assert (row.route, row.teacher_mode, row.teacher_cost_usd) == ("error", "replay", 0.0)
+
+
+class ChargingTeacher(FakeTeacher):
+    """A stream teacher that keeps the charge its ledger settled, readable once the stream is closed."""
+
+    def __init__(self, charge: float, **kwargs: Any) -> None:
+        super().__init__(**kwargs)
+        self.charge = charge
+        self.stream_closed = False
+        self.charge_keys: list[str] = []
+
+    async def stream(self, body: dict[str, Any]) -> AsyncIterator[bytes]:
+        try:
+            async for chunk in super().stream(body):
+                yield chunk
+        finally:
+            self.stream_closed = True
+
+    def last_charged_usd(self, key: str) -> float | None:
+        self.charge_keys.append(key)
+        return self.charge if self.stream_closed else None
+
+
+def test_a_raw_stream_logs_the_charge_the_teacher_settled(serve: Serve, store: Store) -> None:
+    spec = make_spec(cascade={"escalation_response": "raw"})
+    chunks = [
+        b'data: {"choices":[{"index":0,"delta":{"role":"assistant","content":"lost_card"}}]}\n\n',
+        b'data: {"choices":[],"usage":{"prompt_tokens":88,"completion_tokens":2,"cost":2e-5}}\n\n',
+        b"data: [DONE]\n\n",
+    ]
+    teacher = ChargingTeacher(7.5e-5, chunks=chunks)
+    body = chat(UNSURE, stream=True)
+    with serve(spec, teacher) as client:
+        resp = client.post("/v1/chat/completions", json=body)
+    assert resp.content == b"".join(chunks)
+    assert teacher.charge_keys == [request_key({**body, "model": TEACHER})]
+    [row] = store.iter_served(spec.task)
+    assert (row.prompt_tokens, row.completion_tokens) == (88, 2)
+    assert row.teacher_cost_usd == pytest.approx(7.5e-5)
+
+
+LIVE_PRICING = PricingSnapshot(
+    date="2026-09-26",
+    source="test",
+    models={
+        TEACHER: {
+            "default": ModelPrice(1e-6, 2e-6),
+            "providers": {"alpha": ModelPrice(3e-6, 5e-6), "beta": ModelPrice(4e-6, 8e-6, 1e-5)},
+        }
+    },
+)
+DELTA = b'data: {"choices":[{"index":0,"delta":{"role":"assistant","content":"Lost card"}}]}\n\n'
+
+
+@pytest.mark.parametrize(
+    ("body_extra", "final", "expected"),
+    [
+        # usage.cost, as OpenRouter reports it
+        ({}, b'{"choices":[],"usage":{"prompt_tokens":88,"completion_tokens":2,"cost":4.2e-4}}', 4.2e-4),
+        # tokens without a cost: priced at the provider that served the stream (88 x 3e-6 + 2 x 5e-6)
+        ({}, b'{"provider":"Alpha","choices":[],"usage":{"prompt_tokens":88,"completion_tokens":2}}', 2.74e-4),
+        # no usage chunk (the client did not ask for it): the reserved worst case
+        ({}, None, "worst"),
+        # no usage and no max_tokens: the worst case of the body the teacher sent, with its max_tokens default
+        ({"max_tokens": None}, None, "worst"),
+    ],
+    ids=["usage-cost", "tokens-at-served-provider", "no-usage", "no-usage-no-max-tokens"],
+)
+def test_a_raw_stream_logs_what_a_live_ledger_settled(
+    serve: Serve, store: Store, tmp_path: Path, body_extra: dict[str, Any], final: bytes | None, expected: Any
+) -> None:
+    ledger = Ledger(tmp_path / "ledger.sqlite", global_cap=5.0)
+    teacher = LiveTeacher(
+        TEACHER_BASE,
+        TEACHER_KEY,
+        ledger=ledger,
+        pricing=LIVE_PRICING,
+        task="t",
+        phase="serve",
+        run_id="r",
+        max_tokens_default=24,
+    )
+    spec = make_spec(cascade={"escalation_response": "raw"})
+    body = {k: v for k, v in {**chat(UNSURE, stream=True), **body_extra}.items() if v is not None}
+    content = DELTA + (b"data: " + final + b"\n\n" if final is not None else b"") + b"data: [DONE]\n\n"
+    with respx.mock(base_url=TEACHER_BASE, assert_all_called=True) as router:
+        router.post("/chat/completions").mock(
+            return_value=httpx.Response(200, content=content, headers={"content-type": "text/event-stream"})
+        )
+        with serve(spec, teacher) as client:
+            resp = client.post("/v1/chat/completions", json=body)
+    assert resp.status_code == 200 and resp.content == content
+    if expected == "worst":
+        sent = {**body, "model": TEACHER, "max_tokens": 24}
+        expected = worst_case_cost(sent, LIVE_PRICING.price_for(TEACHER))
+    assert ledger.spent(phase="serve") == pytest.approx(expected)
+    assert ledger.open_reservations() == 0
+    [row] = store.iter_served(spec.task)
+    assert row.route == "teacher"
+    assert row.teacher_cost_usd == pytest.approx(expected)
+
+
+@pytest.mark.parametrize("stream", [False, True])
+def test_an_escalation_retried_after_a_timeout_logs_every_attempt_charged(
+    serve: Serve, store: Store, tmp_path: Path, stream: bool
+) -> None:
+    ledger = Ledger(tmp_path / "ledger.sqlite", global_cap=5.0)
+    teacher = LiveTeacher(
+        TEACHER_BASE,
+        TEACHER_KEY,
+        ledger=ledger,
+        pricing=LIVE_PRICING,
+        task="t",
+        phase="serve",
+        run_id="r",
+        max_retries=1,
+        backoff_base=0.0,
+    )
+    usage = {"prompt_tokens": 88, "completion_tokens": 2, "cost": 4.2e-4}
+    if stream:
+        final = b'data: {"choices":[],"usage":' + json.dumps(usage).encode() + b"}\n\n"
+        answer = httpx.Response(200, content=DELTA + final, headers={"content-type": "text/event-stream"})
+    else:
+        message = {"role": "assistant", "content": "lost_card"}
+        choices = [{"index": 0, "message": message, "finish_reason": "stop"}]
+        answer = httpx.Response(200, json={"id": "gen-1", "model": TEACHER, "choices": choices, "usage": usage})
+    spec = make_spec(cascade={"escalation_response": "raw"})
+    with respx.mock(base_url=TEACHER_BASE, assert_all_called=True) as router:
+        route = router.post("/chat/completions").mock(side_effect=[httpx.ReadTimeout("slow"), answer])
+        with serve(spec, teacher) as client:
+            resp = client.post("/v1/chat/completions", json=chat(UNSURE, stream=stream))
+    assert resp.status_code == 200 and resp.headers["x-taskdistill-route"] == "teacher"
+    assert route.call_count == 2
+    # the timed-out attempt may have been billed: the ledger charged its worst case plus the answer's cost
+    worst = worst_case_cost({**chat(UNSURE), "model": TEACHER}, LIVE_PRICING.price_for(TEACHER))
+    assert ledger.spent(phase="serve") == pytest.approx(worst + 4.2e-4)
+    [row] = store.iter_served(spec.task)
+    assert row.teacher_cost_usd == pytest.approx(worst + 4.2e-4)
+
+
+# the teacher deadline ------------------------------------------------------------------------------
+
+
+class HangingTeacher(FakeTeacher):
+    """A teacher that never answers (or never sends its first byte) within the test."""
+
+    def __init__(self, **kwargs: Any) -> None:
+        super().__init__(**kwargs)
+        self.stream_closed = False
+
+    async def complete(self, body: dict[str, Any]) -> TeacherResult:
+        self.bodies.append(copy.deepcopy(body))
+        await asyncio.sleep(10)
+        return await super().complete(body)
+
+    async def stream(self, body: dict[str, Any]) -> AsyncIterator[bytes]:
+        self.stream_bodies.append(copy.deepcopy(body))
+        try:
+            await asyncio.sleep(10)
+            yield b"data: [DONE]\n\n"
+        finally:
+            self.stream_closed = True
+
+
+def test_a_teacher_timeout_falls_back_to_the_student_at_once(serve: Serve, store: Store) -> None:
+    with serve(make_spec(), FakeTeacher(error=TeacherTimeout("teacher did not answer")), teacher_deadline_s=30) as c:
+        started = time.perf_counter()
+        resp = c.post("/v1/chat/completions", json=chat(UNSURE))
+        elapsed = time.perf_counter() - started
+    assert resp.headers["x-taskdistill-route"] == "student-fallback"
+    assert resp.headers["x-taskdistill-teacher-error"] == "timeout"
+    assert resp.json()["choices"][0]["message"]["content"] == "lost_card"
+    assert elapsed < 2.0
+
+
+@pytest.mark.parametrize("stream", [False, True])
+@pytest.mark.parametrize("escalation_response", ["canonical", "raw"])
+def test_a_hung_teacher_falls_back_at_the_deadline(
+    serve: Serve, store: Store, stream: bool, escalation_response: str
+) -> None:
+    spec = make_spec(cascade={"escalation_response": escalation_response})
+    teacher = HangingTeacher()
+    with serve(spec, teacher, teacher_deadline_s=0.2) as client:
+        started = time.perf_counter()
+        resp = client.post("/v1/chat/completions", json=chat(UNSURE, stream=stream))
+        elapsed = time.perf_counter() - started
+        metrics = client.get("/metrics").text
+    assert resp.status_code == 200
+    assert resp.headers["x-taskdistill-route"] == "student-fallback"
+    assert resp.headers["x-taskdistill-teacher-error"] == "timeout"
+    assert 0.2 <= elapsed < 5.0
+    assert 'taskdistill_teacher_errors_total{kind="timeout"} 1.0' in metrics
+    if stream and escalation_response == "raw":
+        assert teacher.stream_bodies and teacher.stream_closed  # the pending teacher stream was closed
+    else:
+        assert teacher.bodies
+    [row] = store.iter_served(spec.task)
+    assert (row.route, row.reason) == ("student-fallback", "low_confidence")
+    assert row.teacher_ms is not None and 200 <= row.teacher_ms < 5000
+
+
+class HungTransport(httpx.AsyncBaseTransport):
+    """An upstream that accepts the request and never answers."""
+
+    def __init__(self) -> None:
+        self.requests = 0
+
+    async def handle_async_request(self, request: httpx.Request) -> httpx.Response:
+        self.requests += 1
+        await asyncio.sleep(10)
+        return httpx.Response(500)
+
+
+def test_the_deadline_cancels_a_live_call_and_logs_its_charge(serve: Serve, store: Store, tmp_path: Path) -> None:
+    ledger = Ledger(tmp_path / "ledger.sqlite", global_cap=5.0)
+    transport = HungTransport()
+    teacher = LiveTeacher(
+        TEACHER_BASE,
+        TEACHER_KEY,
+        ledger=ledger,
+        pricing=LIVE_PRICING,
+        task="t",
+        phase="serve",
+        run_id="r",
+        transport=transport,
+    )
+    with serve(make_spec(), teacher, teacher_deadline_s=0.2) as client:
+        resp = client.post("/v1/chat/completions", json=chat(UNSURE))
+    assert resp.headers["x-taskdistill-route"] == "student-fallback"
+    assert resp.headers["x-taskdistill-teacher-error"] == "timeout"
+    assert transport.requests == 1
+    # the request was on the wire when the deadline hit: its charge is unknown, so it is settled at the worst case
+    assert ledger.open_reservations() == 0
+    sent = {**chat(UNSURE), "model": TEACHER}
+    worst = worst_case_cost(sent, LIVE_PRICING.price_for(TEACHER))
+    assert ledger.spent(phase="serve") == pytest.approx(worst)
+    [row] = store.iter_served("support-intents")
+    assert (row.route, row.teacher_cost_usd) == ("student-fallback", pytest.approx(worst))
 
 
 # the model worker ----------------------------------------------------------------------------------

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import math
+import time
 from pathlib import Path
 from typing import Any
 
@@ -285,6 +286,79 @@ def test_the_teacher_factory_is_asked_for_an_uncached_serve_teacher(
     assert seen["run_cap"] == 2.0
 
 
+# a slow teacher: the serve retry policy and the deadline ------------------------------------------------
+
+
+def test_the_serve_teacher_gets_the_serve_retry_policy(
+    spec: TaskSpec, ready: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    seen: dict[str, Any] = {}
+    real = runner.teacher_factory.make_teacher
+
+    def spy(spec: TaskSpec, **kwargs: Any) -> Any:
+        seen.update(kwargs)
+        return real(spec, **kwargs)
+
+    monkeypatch.setattr(runner.teacher_factory, "make_teacher", spy)
+    monkeypatch.setenv(KEY_ENV, TEACHER_KEY)
+    pricing_snapshot()
+    app, _ = build_server(spec, backend_factory=Factory(), store=Store(tmp_path / "s.sqlite"))
+    knobs = dict(runner.teacher_factory.SERVE_TEACHER_KNOBS)
+    assert seen["phase"] == "serve"
+    assert {name: seen[name] for name in knobs} == knobs
+    teacher = app.state.cascade.teacher
+    assert isinstance(teacher, LiveTeacher)
+    assert (teacher.timeout, teacher.max_retries, teacher.retry_after_max) == (
+        knobs["timeout"],
+        knobs["max_retries"],
+        knobs["retry_after_max"],
+    )
+    # a hung or rate-limited teacher gives up before the deadline, so the teacher's own error is reported
+    policy_s = teacher.timeout * (teacher.max_retries + 1) + teacher.retry_after_max * teacher.max_retries
+    assert policy_s < runner.SERVE_TEACHER_DEADLINE_S
+
+
+def test_the_app_gives_the_teacher_the_serve_deadline(spec: TaskSpec, ready: Path, tmp_path: Path) -> None:
+    app, banner = build_server(spec, backend_factory=Factory(), store=Store(tmp_path / "s.sqlite"))
+    assert app.state.cascade.teacher_deadline_s == runner.SERVE_TEACHER_DEADLINE_S
+    assert f"teacher deadline: {runner.SERVE_TEACHER_DEADLINE_S:g} s per escalation, then a teacher timeout" in banner
+    app, banner = build_server(
+        spec, teacher_deadline_s=None, backend_factory=Factory(), store=Store(tmp_path / "s.sqlite")
+    )
+    assert app.state.cascade.teacher_deadline_s is None
+    assert not any(line.startswith("teacher deadline") for line in banner)
+    for bad in (0.0, -5.0, math.nan, math.inf):
+        with pytest.raises(ServeSetupError, match="teacher deadline"):
+            build_server(spec, teacher_deadline_s=bad, backend_factory=Factory())
+
+
+def test_a_rate_limited_live_teacher_falls_back_to_the_student_quickly(
+    spec: TaskSpec, ready: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A teacher answering 429 with ``Retry-After: 60`` costs the client at most the deadline, not minutes."""
+    monkeypatch.setenv(KEY_ENV, TEACHER_KEY)
+    pricing_snapshot()
+    store = Store(tmp_path / "s.sqlite")
+    app, _ = build_server(spec, teacher_deadline_s=0.5, backend_factory=Factory(), store=store)
+    limited = httpx.Response(429, headers={"retry-after": "60"}, json={"error": {"message": "rate limited"}})
+    with respx.mock(base_url=TEACHER_BASE, assert_all_called=True) as router:
+        route = router.post("/chat/completions").mock(return_value=limited)
+        with TestClient(app) as client:
+            started = time.perf_counter()
+            resp = client.post("/v1/chat/completions", json=app_request(spec, UNSURE))
+            elapsed = time.perf_counter() - started
+    assert resp.status_code == 200
+    assert resp.headers["x-taskdistill-route"] == "student-fallback"
+    assert resp.headers["x-taskdistill-teacher-error"] == "timeout"
+    assert resp.json()["choices"][0]["message"]["content"] == "lost_card"
+    assert route.called
+    assert elapsed < 5.0
+    ledger = app.state.cascade.teacher.ledger
+    assert ledger.open_reservations() == 0 and ledger.spent() == 0  # a 429 is never charged
+    [row] = store.iter_served(TASK)
+    assert (row.route, row.reason, row.teacher_mode) == ("student-fallback", "low_confidence", "live")
+
+
 # binding and auth -----------------------------------------------------------------------------------
 
 
@@ -338,6 +412,34 @@ def test_a_threshold_from_another_run_is_a_warning(spec: TaskSpec, ready: Path, 
     warnings = [line for line in banner if line.startswith("warning:")]
     assert len(warnings) == 1 and RUN in warnings[0]
     assert app.state.cascade.threshold == 0.8
+
+
+def test_a_stale_adapter_sha_is_a_warning_even_when_the_run_id_still_matches(spec: TaskSpec, tmp_path: Path) -> None:
+    """A threshold.json stamped for different weights than the served adapter warns, not only a different run."""
+    from taskdistill.evaluate.predictions import adapter_sha256
+
+    run_dir = make_run()
+    (run_dir / "adapter" / "adapters.safetensors").write_bytes(b"weights v1")
+    select_run()
+    record(spec, {UNSURE: "Lost card"})
+    write_threshold(0.8)  # no adapter_sha256 stamped (an older eval, or a hand-written file): no warning
+    assert resolve_threshold(spec, "auto", RUN, run_dir / "adapter").warnings == ()
+
+    threshold_path = paths.task_home(TASK) / "threshold.json"
+    data = json.loads(threshold_path.read_text(encoding="utf-8"))
+    data["adapter_sha256"] = "0" * 64  # stale: the run was retrained after this threshold was chosen
+    threshold_path.write_text(json.dumps(data), encoding="utf-8")
+    resolved = resolve_threshold(spec, "auto", RUN, run_dir / "adapter")
+    assert len(resolved.warnings) == 1
+    assert "different adapter" in resolved.warnings[0] and RUN in resolved.warnings[0]
+
+    app, banner = build_server(spec, backend_factory=Factory(), store=Store(tmp_path / "s.sqlite"))
+    assert any("different adapter" in line for line in banner if line.startswith("warning:"))
+    assert app.state.cascade.threshold == 0.8  # the stale threshold is still used, only with a warning
+
+    data["adapter_sha256"] = adapter_sha256(run_dir / "adapter")  # matches the currently served adapter again
+    threshold_path.write_text(json.dumps(data), encoding="utf-8")
+    assert resolve_threshold(spec, "auto", RUN, run_dir / "adapter").warnings == ()
 
 
 def write_run_threshold(value: float | None, run_id: str) -> None:

@@ -8,6 +8,10 @@
 - The teacher is live when an API key is set, else the recording (``--replay`` forces the recording). A live
   teacher must be in the pricing snapshot. ``serve`` never reads the response cache, and says in its banner
   when escalations are replayed.
+- An escalation is interactive, so its teacher gets the serve retry policy
+  (:data:`taskdistill.teacher.factory.SERVE_TEACHER_KNOBS`) rather than the one for batch labelling, and the app
+  gives the whole teacher call :data:`SERVE_TEACHER_DEADLINE_S` seconds: a slower teacher is a teacher timeout,
+  so the student's answer comes back as ``student-fallback`` instead of after minutes of retries.
 - Binding to anything but localhost requires ``TASKDISTILL_SERVER_TOKEN``; clients then send it as a bearer token.
 """
 
@@ -38,6 +42,7 @@ if TYPE_CHECKING:
     from taskdistill.backends.base import Backend
 
 __all__ = [
+    "SERVE_TEACHER_DEADLINE_S",
     "BackendFactory",
     "ServeSetupError",
     "ServedRun",
@@ -54,6 +59,10 @@ BackendFactory = Callable[[str, str, "str | None"], "Backend"]
 SELECTED_RUN = "selected_run.json"
 THRESHOLD_FILE = "threshold.json"
 _RUN_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,127}")
+#: Seconds an escalation's teacher call may take in all (the wait for a free connection, every attempt and
+#: backoff), up to its answer or first streamed byte. The serve retry policy gives a hung teacher up after about
+#: 22 s, so this bounds the fallback when every connection is busy or the teacher trickles its answer.
+SERVE_TEACHER_DEADLINE_S = 30.0
 
 
 class ServeSetupError(RuntimeError):
@@ -150,8 +159,19 @@ def _describe(value: float) -> str:
     return f"{value:.6g}"
 
 
-def _read_threshold(path: Path, name: str) -> tuple[float, str | None]:
-    """The threshold in an eval ``threshold.json`` (null = always escalate) and the run it was chosen for."""
+def _served_adapter_sha256(adapter_path: Path) -> str | None:
+    """The served adapter's hash (:func:`taskdistill.evaluate.predictions.adapter_sha256`); None if unreadable."""
+    from taskdistill.evaluate.predictions import adapter_sha256
+
+    try:
+        return adapter_sha256(adapter_path)
+    except OSError:
+        return None
+
+
+def _read_threshold(path: Path, name: str) -> tuple[float, str | None, str | None]:
+    """The threshold in an eval ``threshold.json`` (null = always escalate), the run and the adapter (its
+    sha256, when the file stamps one) it was chosen for."""
     data = _read_json(path, name)
     if "threshold" not in data:
         raise ServeSetupError(f"{name} has no threshold")
@@ -159,15 +179,24 @@ def _read_threshold(path: Path, name: str) -> tuple[float, str | None]:
     if raw is not None and (not isinstance(raw, int | float) or isinstance(raw, bool)):
         raise ServeSetupError(f"{name}: threshold must be a number or null")
     owner = data.get("run_id")
-    return threshold_from_json(raw), owner if isinstance(owner, str) and owner else None
+    adapter = data.get("adapter_sha256")
+    return (
+        threshold_from_json(raw),
+        owner if isinstance(owner, str) and owner else None,
+        adapter if isinstance(adapter, str) and adapter else None,
+    )
 
 
-def resolve_threshold(spec: TaskSpec, value: str | float, run_id: str) -> ResolvedThreshold:
+def resolve_threshold(
+    spec: TaskSpec, value: str | float, run_id: str, adapter_path: Path | None = None
+) -> ResolvedThreshold:
     """``auto`` reads the threshold ``eval`` chose on validation for ``run_id``; else a number.
 
     ``auto`` takes ``$TASKDISTILL_HOME/<task>/threshold.json`` (the selected run's) when it belongs to
     ``run_id``, else the run's own ``eval/<run_id>/threshold.json``; only when neither belongs to the run is
-    the task-level file used, with a warning.
+    the task-level file used, with a warning. With ``adapter_path`` given, a threshold file that stamps an
+    ``adapter_sha256`` different from the served adapter's own hash (a retrain that kept the run id, but not
+    its weights) also warns, even when the run id itself still matches.
     """
     if isinstance(value, str) and value.strip().lower() == "auto":
         task_file = paths.task_home(spec.task) / THRESHOLD_FILE
@@ -175,12 +204,13 @@ def resolve_threshold(spec: TaskSpec, value: str | float, run_id: str) -> Resolv
         run_file = paths.task_home(spec.task) / "eval" / run_id / THRESHOLD_FILE
         task_level = _read_threshold(task_file, THRESHOLD_FILE) if task_file.is_file() else None
         owner: str | None
+        adapter_hash: str | None
         if task_level is not None and task_level[1] == run_id:
-            (threshold, owner), name = task_level, THRESHOLD_FILE
+            (threshold, owner, adapter_hash), name = task_level, THRESHOLD_FILE
         elif _RUN_ID.fullmatch(run_id) and run_file.is_file():
-            (threshold, owner), name = _read_threshold(run_file, run_name), run_name
+            (threshold, owner, adapter_hash), name = _read_threshold(run_file, run_name), run_name
         elif task_level is not None:
-            (threshold, owner), name = task_level, THRESHOLD_FILE
+            (threshold, owner, adapter_hash), name = task_level, THRESHOLD_FILE
         else:
             raise ServeSetupError(
                 f"--threshold auto needs {THRESHOLD_FILE} for task '{spec.task}' and run {run_id}: run "
@@ -189,10 +219,18 @@ def resolve_threshold(spec: TaskSpec, value: str | float, run_id: str) -> Resolv
             )
         warnings: tuple[str, ...] = ()
         if owner != run_id:
-            warnings = (
+            warnings += (
                 f"{name} was chosen for run {owner or '(unknown)'}, not for the served run {run_id}; "
                 f"re-run `taskdistill eval --task {spec.task} --run {run_id}` or pass --threshold",
             )
+        elif adapter_hash is not None and adapter_path is not None:
+            served_hash = _served_adapter_sha256(adapter_path)
+            if served_hash is not None and served_hash != adapter_hash:
+                warnings += (
+                    f"{name} was chosen for a different adapter than the one being served (run {run_id} was "
+                    f"retrained since); re-run `taskdistill eval --task {spec.task} --run {run_id}` or pass "
+                    "--threshold",
+                )
         source = f"auto: {name}, chosen on validation for run {owner or '(unknown)'}"
         return ResolvedThreshold(threshold, f"{_describe(threshold)} ({source})", warnings)
     try:
@@ -242,13 +280,18 @@ def build_server(
     max_usd: float | None = None,
     backend_factory: BackendFactory | None = None,
     store: Store | None = None,
+    teacher_deadline_s: float | None = SERVE_TEACHER_DEADLINE_S,
 ) -> tuple[FastAPI, list[str]]:
     """The cascade app for ``spec`` and the startup banner lines.
 
     The backend is constructed here (so an unavailable backend fails before anything starts) and loaded on
     the app's model worker thread. ``backend_factory(name, base_model, adapter_path)`` defaults to
-    :func:`taskdistill.backends.factory.load_backend`.
+    :func:`taskdistill.backends.factory.load_backend`. The teacher is built for phase ``serve`` with the serve
+    retry policy, and a teacher call taking longer than ``teacher_deadline_s`` (None: no deadline) is handled as
+    a teacher timeout.
     """
+    if teacher_deadline_s is not None and not (math.isfinite(teacher_deadline_s) and teacher_deadline_s > 0):
+        raise ServeSetupError(f"the teacher deadline must be a positive number of seconds, got {teacher_deadline_s!r}")
     host = bind_host(host)
     token = server_token(host)
     run = resolve_run(spec, run_id)
@@ -257,7 +300,7 @@ def build_server(
             f"run {run.run_id} was trained with the {run.backend} backend; its adapter cannot be loaded by the "
             f"{backend} backend: serve it with --backend {run.backend}"
         )
-    chosen = resolve_threshold(spec, threshold, run.run_id)
+    chosen = resolve_threshold(spec, threshold, run.run_id, run.adapter_path)
     mode = teacher_factory.resolve_mode(spec, "replay" if replay else None)
     pricing = teacher_pricing(spec) if mode == "live" else None
     if backend_factory is None:
@@ -274,6 +317,9 @@ def build_server(
         run_cap=max_usd,
         use_cache=False,
         pricing=pricing,
+        timeout=teacher_factory.SERVE_TIMEOUT_S,
+        max_retries=teacher_factory.SERVE_MAX_RETRIES,
+        retry_after_max=teacher_factory.SERVE_RETRY_AFTER_MAX_S,
     )
     worker = ModelWorker(lambda: model, spec=spec)
     app = create_app(
@@ -284,6 +330,7 @@ def build_server(
         store=store if store is not None else Store(),
         token=token,
         run_id=run.run_id,
+        teacher_deadline_s=teacher_deadline_s,
     )
 
     cascade = spec.cascade
@@ -302,6 +349,8 @@ def build_server(
         f"escalations: {cascade.escalation_response} responses; on teacher error: {cascade.on_teacher_error}",
         f"listening on {_url(host, port)}/v1 (OpenAI-compatible; any model name is accepted)",
     ]
+    if teacher_deadline_s is not None:
+        banner.insert(-1, f"teacher deadline: {teacher_deadline_s:g} s per escalation, then a teacher timeout")
     if mode == "live" and max_usd is not None:
         banner.append(f"spend cap for this server run: ${max_usd:.2f} (--max-usd)")
     if token is not None:
@@ -323,6 +372,7 @@ def run_server(
     backend_factory: BackendFactory | None = None,
     echo: Callable[[str], Any] = print,
     log_level: str = "info",
+    teacher_deadline_s: float | None = SERVE_TEACHER_DEADLINE_S,
 ) -> None:
     """Build the server, print the banner, load the model on its worker thread and serve with uvicorn.
 
@@ -340,6 +390,7 @@ def run_server(
         port=port,
         max_usd=max_usd,
         backend_factory=backend_factory,
+        teacher_deadline_s=teacher_deadline_s,
     )
     for line in banner:
         echo(line)
