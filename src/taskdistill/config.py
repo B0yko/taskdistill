@@ -13,7 +13,7 @@ import re
 from importlib import resources
 from importlib.resources.abc import Traversable
 from pathlib import Path
-from typing import Any, Literal
+from typing import Annotated, Any, Literal
 
 import yaml
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator, model_validator
@@ -130,7 +130,7 @@ class StudentSpec(_Strict):
 class TrainSpec(_Strict):
     profile: Literal["quick", "full"] = "full"
     lora_rank: int = Field(default=16, gt=0)
-    lora_layers: int | Literal["all"] = "all"
+    lora_layers: Annotated[int, Field(gt=0)] | Literal["all"] = "all"
     learning_rate: float = Field(default=1.0e-4, gt=0)
     batch_size: int = Field(default=8, gt=0)
     epochs: float = Field(default=2, gt=0)
