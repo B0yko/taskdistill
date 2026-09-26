@@ -1,0 +1,43 @@
+task: invoices
+type: extraction                # classification | extraction
+labels_file: null               # classification only
+schema_file: schema.json        # extraction only
+input:
+  from: last_user_message       # or: regex
+  regex: null                   # named group "input" when from: regex
+teacher:
+  base_url: ${TASKDISTILL_TEACHER_BASE_URL:-https://openrouter.ai/api/v1}
+  api_key_env: TASKDISTILL_TEACHER_API_KEY   # falls back to OPENROUTER_API_KEY
+  model: ${TASKDISTILL_TEACHER_MODEL:-deepseek/deepseek-v4-flash-0731}
+  prompt_file: teacher_prompt.md
+  temperature: 0
+  max_tokens: 256
+  response_format: null
+  extra_body: {provider: {order: [deepinfra/fp8], allow_fallbacks: false}, reasoning: {enabled: false}}
+student:
+  base_model: mlx-community/Qwen2.5-0.5B-Instruct-4bit   # set by this task's base-model decision
+  system_prompt: "Extract the invoice fields as JSON matching the schema."
+  max_tokens: 256
+  response_template: null       # e.g. '{"intent": "{label}"}'
+train:
+  profile: full                 # quick | full
+  lora_rank: 16
+  lora_layers: all
+  learning_rate: 1.0e-4
+  batch_size: 8
+  epochs: 2
+  max_seq_len: 1024
+  seed: 13
+curate:
+  dedupe: {exact: true, near_dup_jaccard: 0.9}
+  pii: {enabled: true, kinds: [email, phone, iban, card, ipv4, ssn]}
+  split: {predefined: meta.split, val: 0.1, test: 0.1, stratify: false, group_by: null, seed: 13}
+                                # fractions apply only to rows without meta.split
+cascade:
+  reference: teacher            # teacher | gold
+  metric: agreement             # agreement | accuracy | macro_f1 | field_f1
+  target: 0.97                  # or max_drop: 0.01 with reference: gold
+  on_teacher_error: student     # student | error
+  escalation_response: canonical  # canonical | raw
+cost: {local_watts: 20, usd_per_kwh: 0.30, hardware_usd: 0, amortisation_hours: 0}
+budget: {usd_cap: null}         # optional per-task cap; TASKDISTILL_BUDGET_USD always applies
