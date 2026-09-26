@@ -270,3 +270,52 @@ def test_default_keys_are_the_captured_requests_and_the_labelling_keys(
 
 def test_default_keys_without_a_labelling_file(tmp_path: Path, spec: TaskSpec) -> None:
     assert default_keys(spec, Store(tmp_path / "store.sqlite")) == []
+
+
+class _FillingTeacher:
+    """Stands in for the live teacher: answers and writes to the cache like LiveTeacher does."""
+
+    mode = "live"
+
+    def __init__(self, cache: ResponseCache) -> None:
+        self.cache = cache
+        self.bodies: list[dict[str, Any]] = []
+        self.closed = False
+
+    async def complete(self, body: dict[str, Any]) -> TeacherResult:
+        self.bodies.append(body)
+        result = result_for(body, "card_arrival", len(self.bodies))
+        self.cache.put(result, request_context(body))
+        return result
+
+    async def aclose(self) -> None:
+        self.closed = True
+
+
+def test_fill_missing_asks_only_for_uncached_requests(
+    tmp_path: Path, spec: TaskSpec, bodies: list[dict[str, Any]], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from taskdistill.teacher import factory, record
+
+    cache = ResponseCache(tmp_path / "cache.sqlite")
+    cache.put(result_for(bodies[0], "card_arrival", 0), request_context(bodies[0]))
+    fake = _FillingTeacher(cache)
+    monkeypatch.setattr(factory, "make_teacher", lambda *a, **k: fake)
+    monkeypatch.setattr(record, "load_pricing", lambda: _price_table())
+    sent = record.fill_missing(spec, bodies, yes=True, cache=cache, log=lambda _m: None)
+    assert sent == 2
+    assert [request_key(b) for b in fake.bodies] == [request_key(b) for b in bodies[1:]]
+    assert fake.closed
+    assert record.fill_missing(spec, bodies, yes=True, cache=cache, log=lambda _m: None) == 0
+    manifest = build_recording(spec, requests=bodies, out=tmp_path / "rec.jsonl.gz", cache=cache, pricing_date="d")
+    assert manifest["records"] == 3
+
+
+def _price_table() -> Any:
+    from taskdistill.teacher.pricing import ModelPrice
+
+    class _Pricing:
+        def price_for(self, model: str, provider: str | None = None) -> ModelPrice:
+            return ModelPrice(prompt=1e-7, completion=1e-7, request=0.0)
+
+    return _Pricing()

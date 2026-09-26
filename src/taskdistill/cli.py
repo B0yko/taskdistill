@@ -422,17 +422,24 @@ def teacher_record(
     task: str = typer.Option(..., "--task"),
     out: Path = typer.Option(..., "--out", help="Recording path (.jsonl.gz)."),
     demo_name: str | None = typer.Option(None, "--demo", help="Record every request a bundled demo sends."),
+    fill: bool = typer.Option(False, "--fill", help="Ask the live teacher for requests that are not cached yet."),
+    yes: bool = typer.Option(False, "--yes", help=YES_HELP),
+    max_usd: float | None = typer.Option(None, "--max-usd", help=MAX_USD_HELP),
 ) -> None:
     """Write the cached teacher outputs of a task as an offline replay recording."""
     from taskdistill.config import load_task
     from taskdistill.store import Store
-    from taskdistill.teacher.record import build_recording, default_keys
+    from taskdistill.teacher.record import build_recording, default_keys, fill_missing
 
     spec = load_task(task)
     if demo_name:
         from taskdistill.demos.runner import demo_requests
 
-        result = build_recording(spec, requests=demo_requests(demo_name, spec), out=out)
+        requests = demo_requests(demo_name, spec)
+        if fill:
+            sent = fill_missing(spec, requests, yes=yes, max_usd=max_usd, log=typer.echo)
+            typer.echo(f"filled {sent} missing answer(s) from the live teacher")
+        result = build_recording(spec, requests=requests, out=out)
     else:
         result = build_recording(spec, keys=default_keys(spec, Store()), out=out)
     typer.echo(f"wrote {out} with {result.get('records')} records")
@@ -463,8 +470,10 @@ def budget(json_path: Path | None = typer.Option(None, "--json", help="Also writ
     ledger = Ledger()
     summary = ledger.summary()
     typer.echo(f"total ${summary['total']:.4f} of cap ${summary['cap']:.2f} ({summary['calls']} calls)")
-    for key, value in sorted(summary.get("by_task_phase", {}).items()):
-        typer.echo(f"  {key}: ${value:.4f}")
+    for task_name, phases in sorted(summary.get("by_task_phase", {}).items()):
+        typer.echo(f"  {task_name}: ${summary['by_task'].get(task_name, 0.0):.4f}")
+        for phase, value in sorted(phases.items()):
+            typer.echo(f"    {phase}: ${value:.4f}")
     if json_path is not None:
         ledger.export_json(json_path)
         typer.echo(f"wrote {json_path}")

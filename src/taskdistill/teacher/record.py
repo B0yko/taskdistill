@@ -159,3 +159,44 @@ def default_keys(spec: TaskSpec, store: Store) -> list[str]:
     if labelling.is_file():
         keys.extend(line.strip() for line in labelling.read_text(encoding="utf-8").splitlines() if line.strip())
     return list(dict.fromkeys(keys))
+
+
+def fill_missing(
+    spec: TaskSpec,
+    requests: Iterable[Mapping[str, Any]],
+    *,
+    yes: bool = False,
+    max_usd: float | None = None,
+    cache: ResponseCache | None = None,
+    log: Any = print,
+) -> int:
+    """Ask the live teacher for every request whose answer is not cached yet (budgeted, then cached).
+
+    A recording must hold every request a demo can send; inputs that one profile drops as near-duplicates
+    before labelling can survive in the other profile. Returns the number of requests sent.
+    """
+    import asyncio
+
+    from taskdistill.ledger import worst_case_cost
+    from taskdistill.teacher.client import confirm_spend
+    from taskdistill.teacher.factory import make_teacher, new_run_id
+
+    cache = cache if cache is not None else ResponseCache()
+    context = spec_context(spec)
+    missing = [dict(body) for body in requests if cache.get(request_key(body), context) is None]
+    if not missing:
+        return 0
+    price = load_pricing().price_for(spec.teacher.model, spec.teacher.provider)
+    projected = sum(worst_case_cost(body, price) for body in missing)
+    log(f"{len(missing)} request(s) not cached; worst-case projection ${projected:.4f}")
+    confirm_spend(projected, yes)
+    teacher = make_teacher(spec, mode="live", phase="record-fill", run_id=new_run_id("record"), run_cap=max_usd)
+
+    async def run() -> None:
+        try:
+            await asyncio.gather(*(teacher.complete(body) for body in missing))
+        finally:
+            await teacher.aclose()
+
+    asyncio.run(run())
+    return len(missing)
