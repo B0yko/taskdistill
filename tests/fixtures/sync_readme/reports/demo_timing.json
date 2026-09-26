@@ -1,0 +1,11 @@
+{
+  "date": "2026-09-27",
+  "hardware": {"model": "Mac17,4", "cpu": "Apple M5", "memory_gb": 24.0, "os": "macOS 26.6.2"},
+  "command": "see runs[].command",
+  "runs": [
+    {"name": "banking77 quick, warm", "demo": "banking77", "profile": "quick", "cache": "warm", "install_s": 3.1, "model_download_s": 0.0, "demo_s": 124.0, "total_s": 127.1, "stages_s": {"data": 1, "capture": 4, "curate": 3, "train": 87, "eval": 27, "serve": 1, "report": 0}, "load_average_before": [2.1, 2.5, 2.8], "command": "uvx --from git+https://github.com/B0yko/taskdistill taskdistill demo banking77"},
+    {"name": "banking77 quick, cold", "demo": "banking77", "profile": "quick", "cache": "cold", "install_s": 40.2, "model_download_s": 45.0, "demo_s": 125.0, "total_s": 210.2, "load_average_before": [2.0, 2.4, 2.7], "command": "same, with an empty uv cache and a temporary HF_HOME"},
+    {"name": "invoices quick, warm", "demo": "invoices", "profile": "quick", "cache": "warm", "install_s": 3.0, "model_download_s": 0.0, "demo_s": 150.0, "total_s": 153.0, "load_average_before": [2.2, 2.5, 2.8], "command": "uvx --from git+https://github.com/B0yko/taskdistill taskdistill demo invoices"}
+  ],
+  "notes": ["SAMPLE VALUES - the real file is measured later"]
+}

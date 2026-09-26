@@ -1,0 +1,30 @@
+{
+  "budget_gb": 1.5,
+  "cache": "standard Hugging Face cache (~/.cache/huggingface)",
+  "downloads": [
+    {
+      "repo": "mlx-community/Qwen2.5-0.5B-Instruct-4bit",
+      "revision": "a5339a4131f135d0fdc6a5c8b5bbed2753bbe0f3",
+      "bytes": 289601064,
+      "gb": 0.29,
+      "purpose": "student base 0.5B",
+      "seconds": 44.9,
+      "date": "2026-09-26"
+    },
+    {
+      "repo": "mlx-community/Qwen2.5-1.5B-Instruct-4bit",
+      "revision": "8b403126fc14f14cfc99bb4cfa72ecbc129ea677",
+      "bytes": 880172064,
+      "gb": 0.88,
+      "purpose": "student base 1.5B",
+      "seconds": 122.3,
+      "date": "2026-09-26"
+    }
+  ],
+  "total_bytes": 1169773128,
+  "total_gb": 1.17,
+  "notes": [
+    "Tokenizer files used by curate's length filter come from these same repositories (no extra download).",
+    "No full-precision weights, 3B+ models, spaCy/Presidio or embedding models were downloaded."
+  ]
+}

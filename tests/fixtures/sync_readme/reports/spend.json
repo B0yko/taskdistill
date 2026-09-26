@@ -1,0 +1,32 @@
+{
+  "by_phase": {
+    "bakeoff": 0.032738448,
+    "curate-label": 0.070344766,
+    "demo-capture": 0.147575952,
+    "record-fill": 8.8108e-05
+  },
+  "by_task": {
+    "banking77": 0.100751744,
+    "invoices": 0.14999553
+  },
+  "by_task_phase": {
+    "banking77": {
+      "bakeoff": 0.021146298,
+      "curate-label": 0.024569986,
+      "demo-capture": 0.054947352,
+      "record-fill": 8.8108e-05
+    },
+    "invoices": {
+      "bakeoff": 0.01159215,
+      "curate-label": 0.04577478,
+      "demo-capture": 0.0926286
+    }
+  },
+  "calls": 17233,
+  "cap": 5.0,
+  "exported": "2026-09-26",
+  "open_reservations": 0,
+  "open_reserved": 0.0,
+  "released": 0,
+  "total": 0.250747274
+}
