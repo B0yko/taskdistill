@@ -1,0 +1,59 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Invoice fields",
+  "description": "Eight fields of one invoice, extracted from an email body or a plain-text invoice.",
+  "type": "object",
+  "properties": {
+    "vendor_name": {
+      "description": "The company that issued the invoice (the seller), as written, including its legal suffix.",
+      "type": "string",
+      "minLength": 1
+    },
+    "invoice_number": {
+      "description": "The invoice number exactly as written.",
+      "type": "string",
+      "minLength": 1
+    },
+    "invoice_date": {
+      "description": "The invoice (issue) date as an ISO date.",
+      "type": "string",
+      "format": "date",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
+    },
+    "due_date": {
+      "description": "The payment due date as an ISO date; invoice date + N days for terms such as 'Net 30'; null when absent.",
+      "type": ["string", "null"],
+      "format": "date",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
+    },
+    "currency": {
+      "description": "ISO 4217 code of the invoice currency.",
+      "type": "string",
+      "enum": ["EUR", "USD", "GBP", "CHF", "PLN"]
+    },
+    "total_amount": {
+      "description": "Gross total of this invoice including tax, before deducting payments already made.",
+      "type": "number"
+    },
+    "tax_amount": {
+      "description": "Tax (VAT or sales tax) amount of this invoice; null when not stated.",
+      "type": ["number", "null"]
+    },
+    "po_number": {
+      "description": "The buyer's purchase order number exactly as written; null when absent.",
+      "type": ["string", "null"],
+      "minLength": 1
+    }
+  },
+  "required": [
+    "vendor_name",
+    "invoice_number",
+    "invoice_date",
+    "due_date",
+    "currency",
+    "total_amount",
+    "tax_amount",
+    "po_number"
+  ],
+  "additionalProperties": false
+}
