@@ -57,9 +57,20 @@ class TrainingFailed(RuntimeError):
 _PATH_FIELDS = ("run_dir", "data_dir", "base_model")
 
 
-def _portable_path(value: str) -> str:
-    """An absolute path rendered relative to the workspace (see :func:`taskdistill.paths.relative_to_home`)."""
-    return paths.relative_to_home(value) if len(value) > 1 and Path(value).is_absolute() else value
+def portable_path(value: str) -> str:
+    """An absolute path inside the workspace made workspace-relative; any other value is kept as it is.
+
+    A path outside the workspace (a local ``--base`` directory elsewhere on disk) stays absolute: it is the
+    only way eval and serve can find that base model again. It is never reduced to a working-directory-relative
+    path or to its last component. These files live in the workspace; reports render paths for display on
+    their own.
+    """
+    if len(value) <= 1 or not Path(value).is_absolute():
+        return value
+    try:
+        return str(Path(value).resolve().relative_to(paths.home()))
+    except (ValueError, OSError):
+        return value
 
 
 @dataclass
@@ -99,10 +110,10 @@ class TrainConfig:
         return cls(**{k: v for k, v in data.items() if k in names})
 
     def to_portable_dict(self) -> dict[str, Any]:
-        """``to_dict()`` with absolute paths made workspace-relative, safe to keep in a shared run directory."""
+        """``to_dict()`` with paths inside the workspace made workspace-relative (see :func:`portable_path`)."""
         data = self.to_dict()
         for key in _PATH_FIELDS:
-            data[key] = _portable_path(data[key])
+            data[key] = portable_path(data[key])
         return data
 
     def save(self, path: Path, *, portable: bool = True) -> Path:
@@ -468,13 +479,11 @@ def library_versions(backend: str) -> dict[str, str | None]:
 
 
 def _json_safe(value: Any) -> Any:
-    """Non-finite floats become null; absolute paths become workspace-relative."""
+    """Non-finite floats become null; absolute paths inside the workspace become workspace-relative."""
     if isinstance(value, float):
         return value if math.isfinite(value) else None
     if isinstance(value, str):
-        if len(value) > 1 and Path(value).is_absolute():
-            return paths.relative_to_home(value)
-        return value
+        return portable_path(value)
     if isinstance(value, dict):
         return {str(k): _json_safe(v) for k, v in value.items()}
     if isinstance(value, (list, tuple)):

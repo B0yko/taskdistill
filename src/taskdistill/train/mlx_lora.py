@@ -45,6 +45,7 @@ from taskdistill.train.common import (
     TrainConfig,
     TrainDataError,
     library_versions,
+    portable_path,
     read_jsonl,
     validation_split_for,
     warmup_iters,
@@ -243,8 +244,9 @@ def _publish_adapter(partial: Path, final: Path) -> None:
 
 
 def _portable_base(base_model: str) -> str:
-    """A local base directory is recorded relative to the workspace; a Hub id as is."""
-    return relative_to_home(base_model) if Path(base_model).is_absolute() else base_model
+    """A local base directory inside the workspace is recorded relative to it (:func:`portable_path`); one
+    outside the workspace stays absolute, so eval and serve can still find it; a Hub id is kept as is."""
+    return portable_path(base_model) if Path(base_model).is_absolute() else base_model
 
 
 def lr_schedule(cfg: TrainConfig) -> Any:

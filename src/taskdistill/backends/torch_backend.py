@@ -9,12 +9,15 @@ are not rounded to the bfloat16 grid before the float32 log-softmax.
 
 MLX 4-bit repositories (the default student bases) have no torch weights; they are mapped to their
 full-precision ``Qwen/...`` equivalents through :data:`taskdistill.models.TORCH_EQUIVALENTS`, with a
-warning. Local directories load as they are.
+warning. Local directories load as they are. A Hugging Face base with no revision given loads the commit
+the adapter was trained on (``revision`` in its ``adapter_config.json``), not whatever the default branch
+points at now.
 """
 
 from __future__ import annotations
 
 import importlib.util
+import json
 import sys
 import threading
 import warnings
@@ -30,6 +33,7 @@ __all__ = [
     "LORA_TARGET_MODULES",
     "TorchBackend",
     "TorchSession",
+    "adapter_base_revision",
     "chat_ids",
     "float32_output_head",
     "load_causal_lm",
@@ -116,6 +120,24 @@ def resolve_torch_base(base_model: str, revision: str | None = None) -> tuple[st
             "transformers checkpoint (a Hugging Face repo id or a local directory)"
         )
     return base_model, revision
+
+
+def adapter_base_revision(adapter_path: str | None, source: str) -> str | None:
+    """The base commit a PEFT adapter directory records (``revision`` in ``adapter_config.json``), else None.
+
+    Only a record for ``source`` itself counts (``base_model_name_or_path`` equal to it): the training run
+    writes the Hugging Face repo id there together with the commit of the snapshot it trained on.
+    """
+    if not adapter_path:
+        return None
+    try:
+        config = json.loads((Path(adapter_path) / "adapter_config.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    if not isinstance(config, dict) or config.get("base_model_name_or_path") != source:
+        return None
+    revision = config.get("revision")
+    return revision if isinstance(revision, str) and revision else None
 
 
 def local_model_dir(source: str, revision: str | None) -> str:
@@ -260,6 +282,7 @@ class TorchBackend(Backend):
         self.loader: Loader | None = None
         self.device = "cpu"
         self.source: str | None = None
+        self.source_revision: str | None = None  # the base commit loaded (None: a local directory or the default)
         self.logits_dtype: str | None = None
         self._load_lock = threading.Lock()
 
@@ -273,6 +296,8 @@ class TorchBackend(Backend):
                 return
             loader = select_loader()
             source, revision = resolve_torch_base(self.base_model, self.revision)
+            if revision is None and not Path(source).is_dir():
+                revision = adapter_base_revision(self.adapter_path, source)  # the commit the adapter was trained on
             if loader == "unsloth":
                 model, tokenizer = self._load_unsloth(source, revision)
                 self.device = model_device(model, default="cuda")
@@ -281,6 +306,7 @@ class TorchBackend(Backend):
             self.logits_dtype = float32_output_head(model)
             self.loader = loader
             self.source = source
+            self.source_revision = revision
             self.tokenizer = tokenizer
             self.stop_ids = stop_token_ids(tokenizer, model)
             self.model = model

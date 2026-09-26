@@ -334,13 +334,15 @@ def _snapshot_revision(path: str) -> str | None:
 
 
 def _tidy_adapter_dir(adapter_dir: Path, *, hub_base: str | None = None, revision: str | None = None) -> None:
-    """Make PEFT's files reproducible and free of absolute paths.
+    """Make PEFT's files reproducible and, where possible, free of absolute paths.
 
     ``target_modules`` is saved from a set, whose order changes between processes, so it is sorted. PEFT
     records the directory the base was loaded from: for a hub base (``hub_base``) that is a cache
     snapshot, so it is replaced by the repo id and the snapshot's commit goes to ``revision``, which is
-    what ``AutoPeftModelForCausalLM`` loads; a local base directory is made workspace-relative. A repo id
-    recorded as such (Unsloth's pre-quantised repos) is kept. ``README.md`` gets the same base.
+    what ``AutoPeftModelForCausalLM`` loads; a local base directory is made workspace-relative when it is
+    inside the workspace (:func:`taskdistill.train.common.portable_path`), else kept absolute, so eval and
+    serve can still find a base outside the workspace. A repo id recorded as such (Unsloth's pre-quantised
+    repos) is kept. ``README.md`` gets the same base.
     """
     path = adapter_dir / "adapter_config.json"
     if not path.is_file():
@@ -354,7 +356,7 @@ def _tidy_adapter_dir(adapter_dir: Path, *, hub_base: str | None = None, revisio
             new_base = hub_base
             config["revision"] = revision or config.get("revision") or _snapshot_revision(base)
         else:
-            new_base = relative_to_home(base)
+            new_base = common.portable_path(base)
         config["base_model_name_or_path"] = new_base
         card = adapter_dir / "README.md"
         if card.is_file():

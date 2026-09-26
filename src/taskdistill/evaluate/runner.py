@@ -3,6 +3,11 @@
 Validation data drives every choice: the run (``select``), the threshold (on raw confidence), the isotonic fit and the
 TF-IDF ``C``. The reported split (``test`` by default) is only scored, and each test scoring is appended to
 ``$TASKDISTILL_HOME/<task>/test_access_log.jsonl``. Outputs go to ``$TASKDISTILL_HOME/<task>/eval/<run-id>/``.
+
+``selected_run.json`` is written last, once the selected run's ``threshold.json`` is in place (and, when the selected
+run is the one evaluated, once its evaluation is complete), so a failed or interrupted ``eval --select`` never leaves
+the selection pointing at a run whose threshold was not chosen. Every ``threshold.json`` names the run it was chosen
+for and is stamped with that run's adapter hash and training date.
 """
 
 from __future__ import annotations
@@ -10,8 +15,10 @@ from __future__ import annotations
 import functools
 import json
 import math
+import os
 import re
 import shlex
+import threading
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -184,9 +191,16 @@ def _clean(value: Any) -> Any:
 
 
 def _write_json(path: Path, payload: Mapping[str, Any]) -> Path:
+    """Write ``payload`` atomically: a reader sees the old file or the new one, never a partial write."""
     path.parent.mkdir(parents=True, exist_ok=True)
     text = json.dumps(_clean(payload), indent=2, ensure_ascii=False, allow_nan=False)
-    path.write_text(text + "\n", encoding="utf-8")
+    tmp = path.with_name(f".{path.name}.{os.getpid()}-{threading.get_ident()}.tmp")
+    try:
+        tmp.write_text(text + "\n", encoding="utf-8")
+        tmp.replace(path)
+    except BaseException:
+        tmp.unlink(missing_ok=True)
+        raise
     return path
 
 
@@ -271,7 +285,15 @@ def _default_factory(backend: str) -> BackendFactory:
 
 
 def _default_command(
-    task: str, *, run_id: str | None, split: str, backend: str, select: bool, zero_shot: bool, fast: bool
+    task: str,
+    *,
+    run_id: str | None,
+    split: str,
+    backend: str,
+    select: bool,
+    zero_shot: bool,
+    fast: bool,
+    base: str | None = None,
 ) -> str:
     parts = ["taskdistill", "eval", "--task", task]
     if run_id:
@@ -283,6 +305,8 @@ def _default_command(
         parts.append("--select")
     if zero_shot:
         parts.append("--zero-shot")
+    if base:
+        parts += ["--base", shlex.quote(base)]
     if fast:
         parts.append("--fast")
     return " ".join(parts)
@@ -293,6 +317,12 @@ def _default_command(
 
 def selected_run_path(task: str) -> Path:
     return paths.task_home(task) / SELECTED_RUN_FILE
+
+
+def _commit_selection(spec: TaskSpec, payload: Mapping[str, Any], log: Log) -> None:
+    """Write ``selected_run.json``: only once the selected run's ``threshold.json`` has been written."""
+    path = _write_json(selected_run_path(spec.task), payload)
+    log(f"wrote {paths.relative_to_home(path)}")
 
 
 def read_selected_run(task: str) -> dict[str, Any]:
@@ -344,6 +374,8 @@ def zero_shot_run(spec: TaskSpec, base_model: str, backend: str) -> RunInfo:
     header also names the base model, so two bases with the same short name never share cached rows.
     """
     base_model = _local_model(base_model)
+    if not Path(base_model).is_absolute() and Path(base_model).expanduser().is_dir():
+        base_model = str(Path(base_model).expanduser().resolve())  # a local directory given relative to the cwd
     run_id = ZERO_SHOT_PREFIX + short_model_name(base_model) + ("-torch" if backend == "torch" else "")
     return RunInfo(
         run_id=run_id,
@@ -424,20 +456,48 @@ def _choose_threshold(
     return threshold
 
 
+def _run_stamp(info: RunInfo) -> dict[str, Any]:
+    """What identifies the weights a threshold was chosen on: the adapter's hash and the run's training date.
+
+    Retraining a run id keeps the id but changes both, so a reader can tell a threshold chosen for earlier weights.
+    """
+    if info.adapter_dir is None:
+        return {}
+    log_path = info.run_dir / "train_log.json"
+    trained = _read_json(log_path).get("date") if log_path.is_file() else None
+    return {"adapter_sha256": adapter_sha256(info.adapter_dir), "train_date": _optional_str(trained)}
+
+
 def _write_thresholds(
-    spec: TaskSpec, run_id: str, threshold: ThresholdResult, *, zero_shot: bool, date: str, log: Log
+    spec: TaskSpec,
+    info: RunInfo,
+    threshold: ThresholdResult,
+    *,
+    date: str,
+    log: Log,
+    task_level: bool | None = None,
 ) -> tuple[Path, Path | None]:
     """``eval/<run-id>/threshold.json`` always; the task's ``threshold.json`` only for the selected run.
 
     The task-level file is what ``serve --threshold auto`` reads for the selected run, so evaluating another run (a
     seed, the larger base, the gold-label ceiling) never replaces it; that run's threshold stays in its own copy,
-    which ``serve --run <run-id> --threshold auto`` reads. Zero-shot pseudo-runs are never served.
+    which ``serve --run <run-id> --threshold auto`` reads. Zero-shot pseudo-runs are never served. ``task_level``
+    True writes the task-level file for a run that is being selected (``selected_run.json`` is written after it);
+    None decides from ``selected_run.json``.
     """
-    payload = {**threshold.to_dict(), "run_id": run_id, "task": spec.task, "split": "valid", "date": date}
+    run_id = info.run_id
+    payload = {
+        **threshold.to_dict(),
+        "run_id": run_id,
+        "task": spec.task,
+        "split": "valid",
+        "date": date,
+        **_run_stamp(info),
+    }
     run_path = _write_json(paths.eval_dir(spec.task) / run_id / THRESHOLD_FILE, payload)
-    if zero_shot:
+    if info.zero_shot:
         return run_path, None
-    if _is_selected(spec.task, run_id):
+    if task_level if task_level is not None else _is_selected(spec.task, run_id):
         return run_path, _write_json(paths.task_home(spec.task) / THRESHOLD_FILE, payload)
     log(
         f"{THRESHOLD_FILE} kept for the selected run {_selected_id(spec.task) or '(unreadable selected_run.json)'}; "
@@ -447,13 +507,16 @@ def _write_thresholds(
     return run_path, None
 
 
-def _sync_selected_threshold(spec: TaskSpec, run_id: str, valid: ValidationSplit, log: Log) -> None:
-    """After a selection that is not evaluated in the same call, choose and write the selected run's threshold."""
+def _sync_selected_threshold(spec: TaskSpec, info: RunInfo, valid: ValidationSplit, log: Log) -> None:
+    """For a selection that is not evaluated in the same call, choose and write the selected run's threshold.
+
+    Both ``eval/<run-id>/threshold.json`` and the task-level file are written; ``selected_run.json`` follows.
+    """
     labels = list(spec.labels) if spec.type == "classification" else []
     fields = _fields(spec, [valid]) if spec.type == "extraction" else []
-    log(f"threshold for the selected run {run_id}:")
+    log(f"threshold for the selected run {info.run_id}:")
     threshold = _choose_threshold(spec, valid, labels=labels, fields=fields, log=log)
-    _write_thresholds(spec, run_id, threshold, zero_shot=False, date=_now(), log=log)
+    _write_thresholds(spec, info, threshold, date=_now(), log=log, task_level=True)
 
 
 # -- predictions -------------------------------------------------------------------------------------------------
@@ -940,11 +1003,13 @@ def _select(
     backend_name: str,
     alternatives: bool,
     log: Log,
-) -> tuple[dict[str, Any], ValidationSplit]:
-    """Choose the run on validation: best seed per base model, then the base-model rule. Writes selected_run.json.
+) -> tuple[dict[str, Any], ValidationSplit, RunInfo]:
+    """Choose the run on validation: best seed per base model, then the base-model rule.
 
-    Returns the ``selected_run.json`` payload and the selected run's validation predictions. Each candidate's backend
-    is freed once its validation pass is done, so later candidates' latencies are not measured next to earlier models.
+    Returns the ``selected_run.json`` payload, the selected run's validation predictions and the run; the caller
+    writes the payload (:func:`_commit_selection`) once the selected run's threshold is in place. Each candidate's
+    backend is freed once its validation pass is done, so later candidates' latencies are not measured next to
+    earlier models.
     """
     candidates = discover_candidates(spec, backend_name, log)
     if not candidates:
@@ -1014,6 +1079,7 @@ def _select(
         "run_id": selected,
         "reason": reason,
         "date": _now(),
+        **_run_stamp(by_run[selected]),
         "split": "valid",
         "n_valid": len(valid),
         "rule": {
@@ -1037,27 +1103,40 @@ def _select(
             for rid in sorted(predicted)
         },
     }
-    path = _write_json(selected_run_path(spec.task), payload)
     log(f"selected {reason}")
-    log(f"wrote {paths.relative_to_home(path)}")
-    return payload, predicted[selected]
+    return payload, predicted[selected], by_run[selected]
 
 
 # -- evaluation --------------------------------------------------------------------------------------------------
 
 
-def _resolve_run(spec: TaskSpec, *, run_id: str | None, zero_shot: bool, backend: str, log: Log) -> RunInfo:
+def _resolve_run(
+    spec: TaskSpec,
+    *,
+    run_id: str | None,
+    zero_shot: bool,
+    backend: str,
+    log: Log,
+    selected: str | None = None,
+    base: str | None = None,
+) -> RunInfo:
+    """The run to evaluate. ``selected`` is a selection made in this call (not yet in ``selected_run.json``).
+
+    Zero-shot takes ``base`` when given, else the base of ``run_id``, of the selected run, or of the spec.
+    """
     if zero_shot:
+        if base:
+            return zero_shot_run(spec, base, backend)
         if run_id:
             return zero_shot_run(spec, read_run(spec, run_id).base_model, backend)
-        base = spec.student.base_model
-        if selected_run_path(spec.task).is_file():
+        chosen_base = spec.student.base_model
+        if selected is not None or selected_run_path(spec.task).is_file():
             try:
-                base = read_run(spec, read_selected_run(spec.task)["run_id"]).base_model
+                chosen_base = read_run(spec, selected or read_selected_run(spec.task)["run_id"]).base_model
             except EvalError as exc:
                 log(f"zero-shot: {exc}; using the spec's base model")
-        return zero_shot_run(spec, base, backend)
-    info = read_run(spec, run_id or read_selected_run(spec.task)["run_id"])
+        return zero_shot_run(spec, chosen_base, backend)
+    info = read_run(spec, run_id or selected or read_selected_run(spec.task)["run_id"])
     if info.backend is not None and info.backend != backend:
         raise EvalError(
             f"run '{info.run_id}' was trained with the {info.backend} backend; "
@@ -1079,7 +1158,9 @@ def _evaluate(
     command: str,
     selection: Mapping[str, Any] | None,
     log: Log,
+    promote: bool = False,
 ) -> dict[str, Any]:
+    """Evaluate ``info``; ``promote`` marks the run selected in this call (its threshold becomes the task's)."""
     task_type: TaskType = spec.type
     cascade = spec.cascade
     kind = "zero-shot base model" if info.zero_shot else f"{info.labels} labels, seed {info.seed}"
@@ -1209,7 +1290,7 @@ def _evaluate(
         quality_label=f"{cascade.metric} vs {cascade.reference}",
     )
     run_threshold, task_threshold = _write_thresholds(
-        spec, info.run_id, threshold, zero_shot=info.zero_shot, date=date, log=log
+        spec, info, threshold, date=date, log=log, task_level=True if promote else None
     )
     selected = task_threshold is not None
 
@@ -1294,8 +1375,9 @@ def select_on_validation(
         raise EvalError(f"the validation split of task '{spec.task}' is empty")
     backends = _Backends(backend_factory or _default_factory(backend))
     try:
-        payload, chosen = _select(spec, valid, backends, backend_name=backend, alternatives=not fast, log=log)
-        _sync_selected_threshold(spec, payload["run_id"], chosen, log)
+        payload, chosen, selected = _select(spec, valid, backends, backend_name=backend, alternatives=not fast, log=log)
+        _sync_selected_threshold(spec, selected, chosen, log)
+        _commit_selection(spec, payload, log)
         return payload
     finally:
         backends.release()
@@ -1310,6 +1392,7 @@ def run_eval(
     select: bool = False,
     zero_shot: bool = False,
     fast: bool = False,
+    base: str | None = None,
     backend_factory: BackendFactory | None = None,
     log: Log = print,
     command: str | None = None,
@@ -1317,11 +1400,14 @@ def run_eval(
     """Evaluate one run and return the eval JSON (also written to ``eval/<run-id>/eval_<split>.json``).
 
     ``select`` first chooses the run on validation and writes ``selected_run.json`` (and the selected run's
-    ``threshold.json``). Without ``run_id`` the run named in ``selected_run.json`` is evaluated. ``zero_shot``
-    evaluates that run's base model with no adapter as the pseudo-run ``zero-shot-<short base>[-torch]``. ``fast``
-    (the quick profile) skips the alternative confidence scores; the zero-shot baseline is not part of it, so
-    ``zero_shot`` with ``fast`` is refused. ``backend_factory(base_model, adapter_path)`` builds the backend, at
-    most once per run and phase (selection frees each candidate's backend after its validation pass).
+    ``threshold.json``); ``selected_run.json`` is written only once the selected run's threshold is in place, and
+    after its evaluation when the selected run is the one evaluated here. Without ``run_id`` the selected run is
+    evaluated. ``zero_shot`` evaluates a base model with no adapter as the pseudo-run
+    ``zero-shot-<short base>[-torch]``: ``base`` when given (a Hugging Face id or a local directory), else the base
+    of ``run_id`` or of the selected run. ``fast`` (the quick profile) skips the alternative confidence scores; the
+    zero-shot baseline is not part of it, so ``zero_shot`` with ``fast`` is refused.
+    ``backend_factory(base_model, adapter_path)`` builds the backend, at most once per run and phase (selection
+    frees each candidate's backend after its validation pass).
     """
     if split not in EVAL_SPLITS:
         raise ValueError(f"unknown split {split!r}; expected one of {', '.join(EVAL_SPLITS)}")
@@ -1330,11 +1416,20 @@ def run_eval(
             "--zero-shot and --fast cannot be combined: the fast (quick) profile skips the zero-shot baseline; "
             "drop --fast to evaluate it"
         )
+    if base is not None and not zero_shot:
+        raise EvalError("a base model is given only with --zero-shot (a trained run is evaluated on its own base)")
     factory = backend_factory or _default_factory(backend)
     command = _portable_command(
         command
         or _default_command(
-            spec.task, run_id=run_id, split=split, backend=backend, select=select, zero_shot=zero_shot, fast=fast
+            spec.task,
+            run_id=run_id,
+            split=split,
+            backend=backend,
+            select=select,
+            zero_shot=zero_shot,
+            fast=fast,
+            base=base,
         )
     )
     alternatives = not fast
@@ -1345,14 +1440,28 @@ def run_eval(
     try:
         selection: dict[str, Any] | None = None
         chosen: ValidationSplit | None = None
+        selected: RunInfo | None = None
         if select:
-            selection, chosen = _select(spec, valid, backends, backend_name=backend, alternatives=alternatives, log=log)
-        info = _resolve_run(spec, run_id=run_id, zero_shot=zero_shot, backend=backend, log=log)
-        if selection is not None and chosen is not None and selection["run_id"] != info.run_id:
-            # The selected run is not evaluated in this call (zero-shot, or another --run): keep threshold.json in step.
-            _sync_selected_threshold(spec, selection["run_id"], chosen, log)
+            selection, chosen, selected = _select(
+                spec, valid, backends, backend_name=backend, alternatives=alternatives, log=log
+            )
+        info = _resolve_run(
+            spec,
+            run_id=run_id,
+            zero_shot=zero_shot,
+            backend=backend,
+            log=log,
+            selected=None if selected is None else selected.run_id,
+            base=base,
+        )
+        promote = selected is not None and selected.run_id == info.run_id
+        if selection is not None and chosen is not None and selected is not None and not promote:
+            # The selected run is not evaluated in this call (zero-shot, or another --run): its threshold first, then
+            # the selection, both before the other run's evaluation reads selected_run.json.
+            _sync_selected_threshold(spec, selected, chosen, log)
+            _commit_selection(spec, selection, log)
         backends.release(keep=info.run_id)
-        return _evaluate(
+        result = _evaluate(
             spec,
             info,
             valid,
@@ -1364,6 +1473,10 @@ def run_eval(
             command=command,
             selection=selection,
             log=log,
+            promote=promote,
         )
+        if promote and selection is not None:
+            _commit_selection(spec, selection, log)  # after the selected run's threshold.json and eval JSON
+        return result
     finally:
         backends.release()

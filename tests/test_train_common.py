@@ -375,13 +375,15 @@ def test_write_train_log_keys_and_relative_paths(home: Path, tmp_path: Path) -> 
     assert log["adapter_dir"] == f"tiny/runs/{cfg.run_id}/adapter"
     assert log["loss_plot"] == f"tiny/runs/{cfg.run_id}/loss.png"
     assert log["extra_path"] == f"tiny/runs/{cfg.run_id}/data/train.jsonl"
-    assert log["base_model"] == "models/tiny-base"  # relative to the working directory
+    # Outside the workspace the local base stays absolute: eval and serve load it from there (never a
+    # working-directory-relative path or its name only, which they could not resolve).
+    assert log["base_model"] == str(local_base.resolve())
     assert log["final_val_loss"] is None and log["curve"]["val"][1] == [2, None]
     assert {"python", "taskdistill", "mlx", "mlx-lm"} <= set(log["versions"])
     assert {"model", "cpu", "memory_gb"} <= set(log["hardware"])
     assert (Path(cfg.run_dir) / "loss.png").is_file()
     text = path.read_text(encoding="utf-8")
-    assert str(tmp_path) not in text
+    assert text.count(str(tmp_path)) == 1  # the base model is the only absolute path
 
 
 def test_write_train_log_counts_the_examples_left_after_the_length_filter(home: Path) -> None:
@@ -427,11 +429,29 @@ def test_saved_train_config_is_workspace_relative(home: Path, tmp_path: Path) ->
     outside = tmp_path / "elsewhere" / "tiny-base"
     outside.mkdir(parents=True)
     far = plan_training(spec, base=str(outside))
-    assert str(tmp_path) not in far.save(tmp_path / "far.json").read_text(encoding="utf-8")
+    far_record = json.loads(far.save(tmp_path / "far.json").read_text(encoding="utf-8"))
+    assert far_record["base_model"] == str(outside.resolve())  # outside the workspace: kept absolute, never a name
+    assert far_record["run_dir"] == f"tiny/runs/{far.run_id}"
+    assert TrainConfig.load(tmp_path / "far.json").base_model == str(outside.resolve())
 
 
 def test_adapter_size_mb_of_missing_dir(tmp_path: Path) -> None:
     assert common.adapter_size_mb(tmp_path / "nope") == 0.0
+
+
+def test_mlx_adapter_config_base_keeps_a_local_base_outside_the_workspace(home: Path, tmp_path: Path) -> None:
+    """``_portable_base`` follows :func:`common.portable_path`, unlike the display-only ``paths.relative_to_home``."""
+    from taskdistill.train.mlx_lora import _portable_base
+
+    assert _portable_base("mlx-community/Qwen2.5-0.5B-Instruct-4bit") == "mlx-community/Qwen2.5-0.5B-Instruct-4bit"
+
+    inside = home / "models" / "tiny-base"
+    inside.mkdir(parents=True)
+    assert _portable_base(str(inside)) == "models/tiny-base"
+
+    outside = tmp_path / "elsewhere" / "tiny-base"
+    outside.mkdir(parents=True)
+    assert _portable_base(str(outside)) == str(outside.resolve())  # never reduced to "tiny-base"
 
 
 # -- runner orchestration (no model) ---------------------------------------------------------------

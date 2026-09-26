@@ -105,8 +105,15 @@ def test_training_writes_the_adapter_log_and_plot(workspace: Any) -> None:
     assert adapter_config["r"] == 4
     assert adapter_config["lora_alpha"] == 80  # mlx-lm scale 20 x rank 4
     assert adapter_config["target_modules"] == sorted(adapter_config["target_modules"])
-    for name in ("train_log.json", "adapter/adapter_config.json", "adapter/README.md"):
-        assert str(workspace.root) not in (run_dir / name).read_text(encoding="utf-8"), name
+    # The tiny base lives outside the workspace, so the log and the adapter's own config keep its absolute path
+    # (eval, serve and a direct AutoPeftModelForCausalLM.from_pretrained() all load the base from there); nothing
+    # else in the run carries an absolute path.
+    tiny = str(Path(workspace.tiny).resolve())
+    assert on_disk["base_model"] == on_disk["torch_base_model"] == tiny
+    assert adapter_config["base_model_name_or_path"] == tiny
+    assert f"base_model: {tiny}" in (run_dir / "adapter" / "README.md").read_text(encoding="utf-8")
+    log_text = (run_dir / "train_log.json").read_text(encoding="utf-8").replace(json.dumps(tiny), '""')
+    assert str(workspace.root) not in log_text
 
 
 def test_the_log_records_the_run(workspace: Any) -> None:
@@ -313,3 +320,31 @@ def test_a_base_recorded_as_a_repo_id_is_kept(tmp_path: Path) -> None:
     tidied = json.loads((tmp_path / "adapter_config.json").read_text(encoding="utf-8"))
     assert tidied == {**config, "target_modules": ["q", "v"]}
     assert "base_model: example-org/tiny-bnb-4bit" in (tmp_path / "README.md").read_text(encoding="utf-8")
+
+
+def test_a_local_base_outside_the_workspace_keeps_its_absolute_path(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A base outside the workspace is not reduced to its basename, or eval and serve could not find it again."""
+    monkeypatch.setenv("TASKDISTILL_HOME", str(tmp_path / "home"))
+    base = (tmp_path / "models" / "my-student-base").resolve()
+    base.mkdir(parents=True)
+    config = {"base_model_name_or_path": str(base), "revision": None, "target_modules": ["v", "q"]}
+    (tmp_path / "adapter_config.json").write_text(json.dumps(config), encoding="utf-8")
+    torch_lora._tidy_adapter_dir(tmp_path)
+    tidied = json.loads((tmp_path / "adapter_config.json").read_text(encoding="utf-8"))
+    assert tidied["base_model_name_or_path"] == str(base)
+
+
+def test_a_local_base_inside_the_workspace_is_made_workspace_relative(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    home = tmp_path / "home"
+    monkeypatch.setenv("TASKDISTILL_HOME", str(home))
+    base = home / "models" / "inside-base"
+    base.mkdir(parents=True)
+    config = {"base_model_name_or_path": str(base), "revision": None, "target_modules": []}
+    (tmp_path / "adapter_config.json").write_text(json.dumps(config), encoding="utf-8")
+    torch_lora._tidy_adapter_dir(tmp_path)
+    tidied = json.loads((tmp_path / "adapter_config.json").read_text(encoding="utf-8"))
+    assert tidied["base_model_name_or_path"] == "models/inside-base"
