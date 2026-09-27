@@ -129,7 +129,7 @@ def test_teacher_latency_is_a_single_line_with_the_recorded_numbers(sync: types.
 def test_quickstart_timing_states_under_five_minutes(sync: types.ModuleType) -> None:
     body = sync.RENDERERS["quickstart-timing"]()
     assert "under five minutes" in body
-    assert "Mac17,4" in body
+    assert "Apple M5, 24 GB" in body
     assert "banking77" in body
     assert "invoices" in body
 

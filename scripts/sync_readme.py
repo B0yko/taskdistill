@@ -426,33 +426,44 @@ def render_quickstart_timing() -> str:
     runs = timing.get("runs") or []
     if not runs:
         return "Timing not measured yet."
-    lines = [f"Measured on {hardware_text(timing.get('hardware'))}, {timing.get('date') or DASH}:", ""]
+
+    def machine(run: Mapping[str, Any]) -> str:
+        hardware = run.get("hardware") or timing.get("hardware") or {}
+        memory = _num(hardware.get("memory_gb"))
+        return f"{hardware.get('cpu') or DASH}, {memory:g} GB" if memory else str(hardware.get("cpu") or DASH)
+
+    def load_before(run: Mapping[str, Any]) -> str:
+        state = run.get("state_before") or {}
+        return load_average_text(state.get("load_average"))
+
+    lines = [
+        "Measured quick-profile demos in replay mode, each in a fresh workspace and directory "
+        f"({timing.get('date') or DASH}; `reports/demo_timing.json`):",
+        "",
+    ]
     rows = [
         [
-            run.get("demo", DASH), run.get("profile", DASH), run.get("cache", DASH),
-            fmt_seconds(run.get("install_s")), fmt_seconds(run.get("model_download_s")),
-            fmt_seconds(run.get("demo_s")), fmt_seconds(run.get("total_s")),
+            machine(run), f"`{run.get('demo', DASH)}`", run.get("cache", DASH), fmt_seconds(run.get("install_s")),
+            fmt_seconds(run.get("demo_s")), fmt_seconds(run.get("total_s")), load_before(run),
         ]
         for run in runs
     ]  # fmt: skip
-    lines += md_table(["Demo", "Profile", "Cache", "Install", "Model download", "Demo", "Total"], rows)
+    lines += md_table(["Machine", "Demo", "Cache", "Install", "Demo", "Total", "Load average before"], rows)
     lines.append("")
-    totals = [_num(run.get("total_s")) for run in runs if _num(run.get("total_s")) is not None]
-    cold = [run for run in runs if run.get("cache") == "cold"]
-    warm = [run for run in runs if run.get("cache") == "warm"]
     sentences = []
-    if cold:
-        worst = max(cold, key=lambda run: _num(run.get("total_s")) or 0)
+    for run in [r for r in runs if r.get("cache") == "cold"]:
+        size = _num(run.get("model_download_bytes"))
+        downloaded = f", including the {size / 1e9:.2f} GB base-model download" if size else ""
         sentences.append(
-            f"A cold `taskdistill demo {worst.get('demo')}` (empty `uv` cache, empty Hugging Face cache) took "
-            f"{fmt_seconds(worst.get('total_s'))} in total."
+            f"The cold run (empty `uv` cache and Hugging Face cache on the {machine(run)}) took "
+            f"{fmt_seconds(run.get('total_s'))}: {fmt_seconds(run.get('install_s'))} to install and "
+            f"{fmt_seconds(run.get('demo_s'))} for the demo{downloaded}."
         )
-    if warm:
-        best = min(warm, key=lambda run: _num(run.get("total_s")) or 0)
-        warm_time = fmt_seconds(best.get("total_s"))
-        sentences.append(f"With a warm cache, `taskdistill demo {best.get('demo')}` took {warm_time}.")
+    totals = [_num(run.get("total_s")) for run in runs if _num(run.get("total_s")) is not None]
     if totals and max(totals) < 300:
-        sentences.append("The quickstart above finishes in under five minutes, even on a cold cache.")
+        sentences.append(
+            "Every measured run finished in under five minutes; slower Macs and slower connections will take longer."
+        )
     elif totals:
         sentences.append(f"The slowest of these runs took {fmt_seconds(max(totals))}.")
     lines.append(" ".join(sentences))
