@@ -1,0 +1,81 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  TRANSFORMERS_VERBOSITY: error
+  # Default CI never calls a paid API: make sure no key is ever visible to the tests.
+  OPENROUTER_API_KEY: ""
+  TASKDISTILL_TEACHER_API_KEY: ""
+
+jobs:
+  lint:
+    name: Lint, types, README numbers
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        with:
+          python-version: "3.12"
+          enable-cache: true
+      - run: uv sync --locked --extra torch --extra hub
+      - run: uv run ruff check .
+      - run: uv run ruff format --check .
+      - run: uv run mypy
+      - run: uv run python scripts/sync_readme.py --check
+
+  test:
+    name: Tests (Python 3.12, CPU torch)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        with:
+          python-version: "3.12"
+          enable-cache: true
+      - run: uv sync --locked --extra torch --extra hub
+      - run: uv run pytest -q -p no:cacheprovider
+
+  generator:
+    name: Invoice generator determinism (Python 3.13)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        with:
+          python-version: "3.13"
+          enable-cache: true
+      - run: uv sync --locked --python 3.13
+      - run: uv run --python 3.13 pytest -q -p no:cacheprovider tests/test_invoices_generator.py
+
+  macos:
+    name: macOS (mlx pin, CLI, non-Metal tests)
+    # macos-14 runners are deprecated by GitHub (brownouts from 2026-10-05, removed 2026-11-02);
+    # macos-15 is the closest supported arm64 image. The macOS 14 wheel resolution is checked below.
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        with:
+          python-version: "3.12"
+          enable-cache: true
+      - run: uv sync --locked
+      - name: CLI import smoke test
+        run: uv run taskdistill --help && uv run python -c "import mlx.core as mx, mlx_lm; print('mlx', mx.__version__)"
+      - name: The pinned mlx wheels resolve for macOS 14 (the minimum supported)
+        run: MACOSX_DEPLOYMENT_TARGET=14.0 uv pip compile pyproject.toml --python-platform aarch64-apple-darwin --python-version 3.12 -q -o /dev/null
+      - name: Non-Metal tests
+        run: uv run pytest -q -p no:cacheprovider -m "not mlx and not network"
+      - name: Try MLX on the CPU device
+        continue-on-error: true
+        run: uv run python scripts/ci_mlx_cpu.py
