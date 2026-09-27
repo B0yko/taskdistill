@@ -129,10 +129,14 @@ test split then reports whether the target held.
 
 Say your application classifies support tickets with a paid API model.
 
-1. **Create a task spec.**
+1. **Install the command and create a task spec.**
 
    ```bash
-   uvx --from git+https://github.com/B0yko/taskdistill taskdistill init tickets --type classification
+   uv tool install git+https://github.com/B0yko/taskdistill
+   ```
+
+   ```bash
+   taskdistill init tickets --type classification
    ```
 
    Edit `tasks/tickets/teacher_prompt.md` (the system prompt your application sends today), `labels.txt`, and in
@@ -143,7 +147,7 @@ Say your application classifies support tickets with a paid API model.
 
    ```bash
    export TASKDISTILL_TEACHER_BASE_URL=https://openrouter.ai/api/v1   # where the proxy forwards
-   uvx --from git+https://github.com/B0yko/taskdistill taskdistill capture --task tickets
+   taskdistill capture --task tickets
    ```
 
    ```python
