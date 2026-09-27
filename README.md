@@ -49,6 +49,8 @@ package.
 uvx --from git+https://github.com/B0yko/taskdistill taskdistill demo banking77
 ```
 
+The same release is on PyPI: `uvx taskdistill demo banking77` runs it without cloning anything.
+
 <!-- sync:quickstart-timing -->
 Measured quick-profile demos in replay mode, each in a fresh workspace and directory (2026-09-27; `reports/demo_timing.json`):
 
