@@ -13,7 +13,7 @@ only its base URL.
 
 Many production LLM calls are narrow: route a support message to one of N intents, pull eight fields out of an invoice
 e-mail. They ship on a mid-tier API model because that is the fastest way to launch. At volume the call becomes a steady
-cost and a latency floor (in this project the teacher answered in <!-- sync:teacher-latency -->…<!-- /sync -->), and it
+cost and a latency floor (in this project the teacher answered in <!-- sync:teacher-latency -->about 594 ms at p50 and 1,242 ms at p95 (Banking77 labelling calls, 2026-09-26)<!-- /sync -->), and it
 sends every input to a third party. A small fine-tuned model could take most of that traffic, but teams hold back for
 three reasons: nobody has the logged data in trainable shape, nobody trusts the small model's quality, and nobody knows
 which requests it will get wrong.
@@ -50,6 +50,17 @@ uvx --from git+https://github.com/B0yko/taskdistill taskdistill demo banking77
 ```
 
 <!-- sync:quickstart-timing -->
+Measured quick-profile demos in replay mode, each in a fresh workspace and directory (2026-09-27; `reports/demo_timing.json`):
+
+| Machine | Demo | Cache | Install | Demo | Total | Load average before |
+|---|---|---|---|---|---|---|
+| Apple M5, 24 GB | `banking77` | warm | 12.9 s | 2.4 min | 2.7 min | 1.90/1.98/2.02 |
+| Apple M5, 24 GB | `invoices` | warm | 0.2 s | 2.1 min | 2.1 min | 2.62/2.48/2.23 |
+| Apple M4 Max, 128 GB | `banking77` | warm | 3.1 s | 1.4 min | 1.5 min | 7.43/7.80/8.05 |
+| Apple M4 Max, 128 GB | `invoices` | warm | 0.2 s | 1.1 min | 1.1 min | 12.43/10.15/8.98 |
+| Apple M4 Max, 128 GB | `banking77` | cold | 7.1 s | 1.6 min | 1.7 min | 9.31/9.69/8.89 |
+
+The cold run (empty `uv` cache and Hugging Face cache on the Apple M4 Max, 128 GB) took 1.7 min: 7.1 s to install and 1.6 min for the demo, including the 0.29 GB base-model download. Every measured run finished in under five minutes; slower Macs and slower connections will take longer.
 <!-- /sync:quickstart-timing -->
 
 The demo runs the whole pipeline on [Banking77](#data-and-licences) and leaves a trained student, a report in
@@ -174,6 +185,364 @@ Say your application classifies support tickets with a paid API model.
    has drifted away from the training data.
 
 <!-- sync:results -->
+## Results
+
+Numbers below come from `scripts/reproduce.sh` (full profile, recorded teacher outputs) on 2026-09-27 on Mac17,4, Apple M5, 24 GB, macOS 26.6.2, plus one extra zero-shot evaluation (the invoices table also shows the 1.5B zero-shot base); teacher outputs were recorded on 2026-09-26. The test splits were scored 8 times (Banking77) and 9 times (invoices), each time by an evaluation shown in these tables; no choice used them: every choice (base model, seed, threshold, isotonic calibration) was made on the validation split alone. Figures marked “recorded” below (the teacher and cascade rows) replay the teacher outputs captured then, not a live call. The live bench and latency numbers are dated measurements and are not expected to reproduce exactly on different hardware or under different load. Unless noted otherwise, every score has a 95% paired bootstrap interval in brackets (1,000 resamples).
+
+### Banking77 (77 intents)
+
+Test split, n = 3,075. Cells are the score and its 95% paired bootstrap interval; a row aggregating more than one seed shows mean ± sample standard deviation only (see the per-seed table below for each seed's own score, and interval where the eval recorded one). ECE and AUROC use raw (pre-isotonic) student confidence.
+
+| System | n | Accuracy | Macro-F1 | Agreement | ECE | AUROC |
+|---|---|---|---|---|---|---|
+| teacher (deepseek/deepseek-v4.1-flash) | 3,075 | 75.8% [74.2, 77.4] | 74.9% [73.0, 76.1] | reference | — | — |
+| base 0.5B zero-shot (labels in the prompt) | 3,075 | 23.0% [21.6, 24.5] | 20.5% [19.0, 21.6] | 25.6% [24.1, 27.0] | 35.3% [33.9, 36.7] | 0.738 [0.718, 0.761] |
+| TF-IDF + logistic regression (teacher labels) | 3,075 | 72.5% [70.8, 74.0] | 71.4% [69.7, 72.5] | 83.5% [82.2, 84.8] | — | — |
+| student qwen2.5-0.5b (teacher labels, 3 seeds) | 3,075 | 75.7% ± 0.5 | 74.6% ± 0.7 | 88.1% ± 0.2 | 15.2% ± 0.3 | 0.801 ± 0.003 |
+| student qwen2.5-1.5b (teacher labels) | 3,075 | 76.5% [74.9, 78.0] | 75.5% [73.9, 76.7] | 89.2% [88.1, 90.4] | 15.4% [14.1, 16.9] | 0.797 [0.779, 0.814] |
+| student qwen2.5-0.5b (gold labels) | 3,075 | 92.0% [91.0, 92.9] | 92.0% [91.0, 92.9] | 75.8% [74.2, 77.4] | 1.4% [1.0, 2.4] | 0.915 [0.897, 0.931] |
+| cascade (qwen2.5-0.5b-full-s13, t = 0.874) | 3,075 | 76.1% [74.5, 77.7] | 75.0% [73.3, 76.2] | 97.6% [97.0, 98.1] | — | — |
+
+Per-seed scores for `student qwen2.5-0.5b (teacher labels, 3 seeds)` (selected run: `qwen2.5-0.5b-full-s13`):
+
+| Run | Seed | Accuracy | Macro-F1 | Agreement | ECE | AUROC |
+|---|---|---|---|---|---|---|
+| `qwen2.5-0.5b-full-s13` (validation-selected) | 13 | 75.5% [73.8, 77.0] | 74.4% [72.7, 75.6] | 88.1% [86.9, 89.3] | 15.0% [13.7, 16.5] | 0.799 [0.781, 0.816] |
+| `qwen2.5-0.5b-full-s14` | 14 | 75.3% | 74.1% | 87.9% | 15.6% | 0.801 |
+| `qwen2.5-0.5b-full-s15` | 15 | 76.3% | 75.4% | 88.2% | 15.0% | 0.804 |
+
+|  | Value |
+|---|---|
+| Target | Agreement ≥ 97.0% against the teacher |
+| Chosen threshold (on validation) | 0.8740 |
+| Escalation rate, valid / test | 23.4% / 23.7% |
+| Cascade − teacher, Agreement against the teacher (target) | -2.4 pts [-3.0, -1.9] |
+| Cascade − teacher, Accuracy (gold) | +0.3 pts [-0.1, +0.8] |
+| Target held on test | yes |
+
+Target held on test: yes — Agreement against the teacher was 97.6% on test (target 97.0%) at a 23.7% escalation rate, close to the 97.1% on validation at 23.4%.
+
+![Banking77 cascade quality against escalation rate](reports/banking77/threshold_curve.png)
+
+### Invoices (8-field JSON extraction)
+
+Test split, n = 600. The test set is 6 layouts never seen in training, so the effective sample is 6 layouts; the template-cluster bootstrap below says how wide that makes the uncertainty. Cells are the score and its 95% paired bootstrap interval (document-level). A row aggregating more than one seed shows mean ± sample standard deviation only (see the per-seed table below for each seed's own score, and interval where the eval recorded one).
+
+| System | n | JSON validity | Field micro-F1 | Field EM | Doc EM | Agreement | ECE | AUROC |
+|---|---|---|---|---|---|---|---|---|
+| teacher (deepseek/deepseek-v4-flash-0731) | 600 | 100.0% [100.0, 100.0] | 99.5% [99.3, 99.7] | 99.5% [99.3, 99.7] | 96.0% [94.5, 97.5] | reference | — | — |
+| base 0.5B zero-shot (schema in the prompt) | 600 | 42.3% [38.7, 46.2] | 37.0% [34.3, 40.0] | 24.8% [22.5, 27.4] | 1.8% [0.8, 3.0] | 36.9% [34.1, 39.9] | 15.9% [14.2, 17.8] | 0.770 [0.717, 0.824] |
+| base 1.5B zero-shot | 600 | 62.3% [58.2, 66.2] | 73.3% [70.2, 76.1] | 58.9% [54.9, 62.6] | 40.3% [36.3, 44.3] | 73.3% [70.2, 76.1] | 9.7% [8.2, 11.5] | 0.981 [0.970, 0.989] |
+| student qwen2.5-0.5b (teacher labels, 3 seeds) | 600 | 97.1% ± 4.3 | 87.2% ± 4.4 | 85.9% ± 4.7 | 39.2% ± 21.2 | 86.8% ± 4.5 | 15.6% ± 13.3 | 0.874 ± 0.113 |
+| student qwen2.5-1.5b (teacher labels) | 600 | 99.2% [98.3, 99.8] | 94.1% [93.3, 94.9] | 94.0% [93.0, 94.9] | 67.5% [63.8, 71.3] | 93.5% [92.6, 94.4] | 14.1% [11.9, 17.6] | 0.846 [0.813, 0.879] |
+| student qwen2.5-1.5b (gold labels) | 600 | 95.0% [93.0, 96.7] | 93.8% [92.5, 94.9] | 91.4% [89.3, 93.1] | 78.2% [74.8, 81.5] | 93.5% [92.1, 94.6] | 7.8% [5.8, 10.6] | 0.902 [0.869, 0.931] |
+| cascade (qwen2.5-1.5b-full-s13, t = 0.1524) | 600 | 100.0% [100.0, 100.0] | 94.6% [93.9, 95.3] | 94.9% [94.3, 95.6] | 69.2% [65.3, 72.8] | 94.1% [93.3, 94.9] | — | — |
+
+Per-seed scores for `student qwen2.5-0.5b (teacher labels, 3 seeds)` (selected run: `qwen2.5-0.5b-full-s13`):
+
+| Run | Seed | JSON validity | Field micro-F1 | Field EM | Doc EM | Agreement | ECE | AUROC |
+|---|---|---|---|---|---|---|---|---|
+| `qwen2.5-0.5b-full-s13` (validation-selected) | 13 | 100.0% [100.0, 100.0] | 90.9% [89.9, 91.8] | 91.3% [90.4, 92.2] | 55.3% [51.3, 59.3] | 90.4% [89.3, 91.4] | 8.4% [6.7, 11.8] | 0.913 [0.888, 0.935] |
+| `qwen2.5-0.5b-full-s14` | 14 | 92.2% | 88.5% | 84.2% | 47.2% | 88.3% | 7.3% | 0.962 |
+| `qwen2.5-0.5b-full-s15` | 15 | 99.2% | 82.3% | 82.3% | 15.2% | 81.8% | 31.0% | 0.747 |
+
+Template-cluster bootstrap over 6 groups (one per layout): 95% intervals.
+
+| System | JSON validity | Field micro-F1 | Field EM | Doc EM | Agreement | ECE | AUROC |
+|---|---|---|---|---|---|---|---|
+| teacher (deepseek/deepseek-v4-flash-0731) | [100.0, 100.0] | [98.4, 100.0] | [98.5, 100.0] | [88.0, 100.0] | [100.0, 100.0] | — | — |
+| base 0.5B zero-shot (schema in the prompt) | [29.0, 55.7] | [23.9, 50.3] | [15.4, 36.0] | [0.0, 5.2] | [23.5, 50.3] | [11.1, 21.3] | [0.662, 0.916] |
+| base 1.5B zero-shot | [32.6, 86.8] | [46.7, 89.1] | [30.4, 82.3] | [19.7, 58.8] | [46.7, 89.1] | [5.0, 14.5] | [0.967, 0.993] |
+| student qwen2.5-0.5b (teacher labels, 3 seeds) | [100.0, 100.0] | [82.3, 96.3] | [83.2, 96.4] | [30.7, 73.3] | [80.8, 96.3] | [5.0, 19.5] | [0.873, 0.943] |
+| student qwen2.5-1.5b (teacher labels) | [97.8, 100.0] | [87.1, 98.5] | [86.9, 98.4] | [38.7, 89.3] | [85.5, 98.5] | [4.2, 41.6] | [0.696, 0.977] |
+| student qwen2.5-1.5b (gold labels) | [87.3, 99.0] | [83.2, 98.8] | [77.8, 98.3] | [47.0, 94.7] | [82.1, 98.8] | [4.1, 28.7] | [0.871, 0.991] |
+| cascade (qwen2.5-1.5b-full-s13, t = 0.1524) | [100.0, 100.0] | [88.3, 98.7] | [89.1, 98.7] | [41.0, 89.8] | [86.7, 98.7] | — | — |
+
+Per-template scores:
+
+student:
+
+| Template | n | JSON validity | Field micro-F1 | Field EM | Doc EM | Agreement |
+|---|---|---|---|---|---|---|
+| email-13 | 100 | 100.0% | 99.2% | 99.2% | 94.0% | 99.2% |
+| email-14 | 100 | 100.0% | 95.9% | 96.1% | 69.0% | 95.9% |
+| email-15 | 100 | 100.0% | 98.8% | 98.9% | 91.0% | 98.8% |
+| layout-13 | 100 | 99.0% | 98.8% | 98.4% | 94.0% | 98.8% |
+| layout-14 | 100 | 96.0% | 77.1% | 76.9% | 0.0% | 73.8% |
+| layout-15 | 100 | 100.0% | 94.2% | 94.5% | 57.0% | 94.2% |
+
+teacher:
+
+| Template | n | Field micro-F1 | Field EM | Doc EM |
+|---|---|---|---|---|
+| email-13 | 100 | 100.0% | 100.0% | 100.0% |
+| email-14 | 100 | 100.0% | 100.0% | 100.0% |
+| email-15 | 100 | 100.0% | 100.0% | 100.0% |
+| layout-13 | 100 | 100.0% | 100.0% | 100.0% |
+| layout-14 | 100 | 96.8% | 97.0% | 76.0% |
+| layout-15 | 100 | 100.0% | 100.0% | 100.0% |
+
+cascade:
+
+| Template | n | JSON validity | Field micro-F1 | Field EM | Doc EM | Agreement |
+|---|---|---|---|---|---|---|
+| email-13 | 100 | 100.0% | 99.2% | 99.2% | 94.0% | 99.2% |
+| email-14 | 100 | 100.0% | 96.0% | 96.2% | 70.0% | 96.0% |
+| email-15 | 100 | 100.0% | 98.8% | 98.9% | 91.0% | 98.8% |
+| layout-13 | 100 | 100.0% | 99.3% | 99.4% | 95.0% | 99.3% |
+| layout-14 | 100 | 100.0% | 79.5% | 80.9% | 4.0% | 76.2% |
+| layout-15 | 100 | 100.0% | 94.7% | 95.0% | 61.0% | 94.7% |
+
+<details>
+<summary>Per-field exact match</summary>
+
+Against the gold:
+
+| Field | student | teacher | cascade |
+|---|---|---|---|
+| `vendor_name` | 88.7% | 96.0% | 90.2% |
+| `invoice_number` | 83.0% | 100.0% | 83.8% |
+| `invoice_date` | 94.8% | 100.0% | 95.7% |
+| `due_date` | 88.8% | 100.0% | 89.8% |
+| `currency` | 99.2% | 100.0% | 100.0% |
+| `total_amount` | 99.2% | 100.0% | 100.0% |
+| `tax_amount` | 99.2% | 100.0% | 100.0% |
+| `po_number` | 99.2% | 100.0% | 100.0% |
+
+Against the teacher:
+
+| Field | student | cascade |
+|---|---|---|
+| `vendor_name` | 84.7% | 86.2% |
+| `invoice_number` | 83.0% | 83.8% |
+| `invoice_date` | 94.8% | 95.7% |
+| `due_date` | 88.8% | 89.8% |
+| `currency` | 99.2% | 100.0% |
+| `total_amount` | 99.2% | 100.0% |
+| `tax_amount` | 99.2% | 100.0% |
+| `po_number` | 99.2% | 100.0% |
+
+</details>
+
+<details>
+<summary>Per-trait breakdown</summary>
+
+student:
+
+| Trait | n | JSON validity | Field micro-F1 | Field EM | Doc EM | Agreement |
+|---|---|---|---|---|---|---|
+| (none) | 91 | 98.9% | 94.3% | 93.8% | 70.3% | 93.4% |
+| distractor_amounts | 306 | 99.0% | 93.9% | 93.8% | 67.6% | 93.4% |
+| eu_number_format | 156 | 98.7% | 95.0% | 94.7% | 73.1% | 94.7% |
+| label_typos | 59 | 98.3% | 94.5% | 93.6% | 71.2% | 94.3% |
+| missing_optional | 177 | 99.4% | 92.5% | 93.6% | 63.3% | 91.8% |
+| net_terms_due | 93 | 97.8% | 87.8% | 87.5% | 35.5% | 87.1% |
+| quoted_reply_chain | 126 | 100.0% | 94.4% | 94.7% | 68.3% | 94.2% |
+
+teacher:
+
+| Trait | n | Field micro-F1 | Field EM | Doc EM |
+|---|---|---|---|---|
+| (none) | 91 | 99.0% | 99.0% | 92.3% |
+| distractor_amounts | 306 | 99.6% | 99.6% | 96.7% |
+| eu_number_format | 156 | 99.7% | 99.7% | 97.4% |
+| label_typos | 59 | 99.8% | 99.8% | 98.3% |
+| missing_optional | 177 | 99.4% | 99.5% | 96.0% |
+| net_terms_due | 93 | 99.3% | 99.3% | 94.6% |
+| quoted_reply_chain | 126 | 99.8% | 99.8% | 98.4% |
+
+cascade:
+
+| Trait | n | JSON validity | Field micro-F1 | Field EM | Doc EM | Agreement |
+|---|---|---|---|---|---|---|
+| (none) | 91 | 100.0% | 94.9% | 94.9% | 71.4% | 94.0% |
+| distractor_amounts | 306 | 100.0% | 94.5% | 94.8% | 69.0% | 94.0% |
+| eu_number_format | 156 | 100.0% | 95.8% | 96.1% | 75.0% | 95.5% |
+| label_typos | 59 | 100.0% | 95.1% | 95.3% | 72.9% | 94.8% |
+| missing_optional | 177 | 100.0% | 92.9% | 94.3% | 65.0% | 92.3% |
+| net_terms_due | 93 | 100.0% | 89.6% | 90.2% | 41.9% | 88.9% |
+| quoted_reply_chain | 126 | 100.0% | 94.4% | 94.7% | 68.3% | 94.2% |
+
+</details>
+
+|  | Value |
+|---|---|
+| Target | Agreement ≥ 97.0% against the teacher |
+| Chosen threshold (on validation) | 0.1524 |
+| Escalation rate, valid / test | 0.0% / 1.7% |
+| Cascade − teacher, Agreement against the teacher (target) | -5.9 pts [-6.7, -5.1], cluster [-13.3, -1.3] |
+| Cascade − teacher, Field micro-F1 (gold) | -4.8 pts [-5.5, -4.2], cluster [-10.1, -1.3] |
+| Target held on test | no |
+
+Target held on test: no — Agreement against the teacher met the 97.0% target on validation (98.5% at 0.0% escalation) but fell to 94.1% on test (1.7% escalation).
+
+![Invoices cascade quality against escalation rate](reports/invoices/threshold_curve.png)
+
+### Cost and latency
+
+Energy assumptions: local cost = 20 W x wall time x $0.3/kWh; hardware amortisation off.
+
+**Banking77**
+
+Measured on Mac16,9, Apple M4 Max, 128 GB, macOS 26.5.2, 2026-09-27:
+
+| System | $/1k recorded | $/1k list price | p50 ms | p95 ms | Source |
+|---|---|---|---|---|---|
+| Teacher only | $0.00593 | $0.0581 | 594 | 1,242 | recorded live labelling calls at concurrency 8 (cache hits and retries excluded) |
+| Student only | $0.0000351 | — | 19.9 | 31.7 | bench against `serve --threshold 0` |
+| Cascade | $0.00136 | $0.0129 | 21.5 | 854 | composed per request, 22.0% escalated |
+
+For comparison, the MacBook Air's student latency was 44.5 ms p50 / 68.2 ms p95 (in-process eval, not through the server).
+
+Break-even at 17,419 requests at the recorded teacher cost, 1,762 requests at the list price without prompt caching.
+
+**Invoices**
+
+Measured on Mac16,9, Apple M4 Max, 128 GB, macOS 26.5.2, 2026-09-27:
+
+| System | $/1k recorded | $/1k list price | p50 ms | p95 ms | Source |
+|---|---|---|---|---|---|
+| Teacher only | $0.0462 | $0.0577 | 1,354 | 2,427 | recorded live labelling calls at concurrency 8 (cache hits and retries excluded) |
+| Student only | $0.000729 | — | 441 | 498 | bench against `serve --threshold 0` |
+| Cascade | $0.00119 | $0.00130 | 442 | 499 | composed per request, 1.0% escalated |
+
+For comparison, the MacBook Air's student latency was 1,391 ms p50 / 1,988 ms p95 (in-process eval, not through the server).
+
+Break-even at 3,140 requests at the recorded teacher cost, 2,505 requests at the list price without prompt caching.
+
+The Why section above states the teacher answered in about 594 ms at p50 and 1,242 ms at p95 (Banking77 labelling calls, 2026-09-26); that is this same recorded Banking77 teacher latency.
+
+### Live bench cross-check
+
+**Banking77** (measured on Mac16,9, Apple M4 Max, 128 GB, macOS 26.5.2, 2026-09-27)
+
+| Mode | Run | Date | n | p50 ms | p95 ms | Escalated | Spend | Load average |
+|---|---|---|---|---|---|---|---|---|
+| Student only | qwen2.5-0.5b-full-s13 | 2026-09-27T02:51:24+00:00 | 300 | 19.9 | 31.7 | 0.0% | $0 | 15.01/12.64/10.21 |
+| Cascade | qwen2.5-0.5b-full-s13 | 2026-09-27T02:52:20+00:00 | 300 | 31.3 | 815 | 21.3% | $0.000500 | 14.16/12.56/10.22 |
+
+Composed (from the test split) vs measured: p50 21.5 vs 31.3 ms, p95 854 vs 815 ms.
+
+**Invoices** (measured on Mac16,9, Apple M4 Max, 128 GB, macOS 26.5.2, 2026-09-27)
+
+| Mode | Run | Date | n | p50 ms | p95 ms | Escalated | Spend | Load average |
+|---|---|---|---|---|---|---|---|---|
+| Student only | qwen2.5-1.5b-full-s13 | 2026-09-27T02:54:45+00:00 | 300 | 441 | 498 | 0.0% | $0 | 11.04/11.93/10.15 |
+| Cascade | qwen2.5-1.5b-full-s13 | 2026-09-27T02:57:14+00:00 | 300 | 445 | 505 | 1.3% | $0.000199 | 9.45/10.91/10.00 |
+
+Composed (from the test split) vs measured: p50 442 vs 445 ms, p95 499 vs 505 ms.
+
+### Training on the M5
+
+**Banking77**
+
+| Run | Base | Examples | Dropped (length) | Iterations | Epochs | Wall min | Peak GB | Tokens/s | Adapter MB |
+|---|---|---|---|---|---|---|---|---|---|
+| `qwen2.5-0.5b-full-s13` | mlx-community/Qwen2.5-0.5B-Instruct-4bit | 8,874 | 0 | 2,219 | 2.00 | 25.1 | 3.45 | 668 | 35.2 |
+| `qwen2.5-1.5b-full-s13` | mlx-community/Qwen2.5-1.5B-Instruct-4bit | 8,874 | 0 | 2,219 | 2.00 | 59.1 | 6.16 | 280 | 73.9 |
+
+**Invoices**
+
+| Run | Base | Examples | Dropped (length) | Iterations | Epochs | Wall min | Peak GB | Tokens/s | Adapter MB |
+|---|---|---|---|---|---|---|---|---|---|
+| `qwen2.5-0.5b-full-s13` | mlx-community/Qwen2.5-0.5B-Instruct-4bit | 2,000 | 0 | 500 | 2.00 | 34.1 | 4.17 | 792 | 35.2 |
+| `qwen2.5-1.5b-full-s13` | mlx-community/Qwen2.5-1.5B-Instruct-4bit | 2,000 | 0 | 500 | 2.00 | 96.7 | 5.20 | 276 | 73.9 |
+
+Load average recorded alongside these runs ranged up to 4.27. The MacBook Air is fanless and can throttle under sustained load; that is why the load average is recorded next to every timing rather than assumed away.
+
+### Reproducibility on a second machine
+
+`scripts/reproduce.sh` (full profile) was run again on a second machine and compared with `scripts/compare_reports.py`; tolerance 2.0 points on each test-split metric.
+
+Reference: Mac17,4, Apple M5, 24 GB, macOS 26.6.2, 2026-09-27. Rerun: Mac16,9, Apple M4 Max, 128 GB, macOS 26.5.2, 2026-09-27.
+
+| Task | Max abs difference | All rows within tolerance |
+|---|---|---|
+| Banking77 | 0.78 pts | yes |
+| Invoices | 10.17 pts | no |
+
+| Task | Row | Metric | Reference | Rerun | Diff |
+|---|---|---|---|---|---|
+| Banking77 | teacher (deepseek/deepseek-v4.1-flash) | Accuracy | 75.8% | 75.8% | +0.00 pts |
+| Banking77 | TF-IDF + logistic regression (teacher labels) | Accuracy | 72.5% | 72.5% | +0.00 pts |
+| Banking77 | student qwen2.5-0.5b (teacher labels, 3 seeds) | Accuracy | 75.7% | 75.9% | +0.25 pts |
+| Banking77 | student qwen2.5-1.5b (teacher labels) | Accuracy | 76.5% | 76.3% | -0.16 pts |
+| Invoices | teacher (deepseek/deepseek-v4-flash-0731) | Field micro-F1 | 99.5% | 99.5% | +0.00 pts |
+| Invoices | student qwen2.5-0.5b (teacher labels, 3 seeds) | Field micro-F1 | 87.2% | 88.2% | +0.96 pts |
+| Invoices | student qwen2.5-1.5b (teacher labels) | Field micro-F1 | 94.1% | 94.5% | +0.46 pts |
+| Invoices | student qwen2.5-1.5b (gold labels) | Field micro-F1 | 93.8% | 91.5% | -2.37 pts |
+
+Banking77: the selected run differed — `qwen2.5-0.5b-full-s13` on the reference machine vs `qwen2.5-1.5b-full-s13` on the rerun (reference: “large gains 0.97 points, below the 1.00-point minimum”; rerun: “large gains 1.26 points (>= 1.00) at 1.87x the small p95 (< 3x)”). Invoices: the selected run matched on both machines (`qwen2.5-1.5b-full-s13`).
+
+All rows within tolerance across every task: no.
+
+Outside the tolerance: Invoices student qwen2.5-0.5b (teacher labels, 3 seeds), Doc EM: 39.2% vs 41.6% (+2.33 points); Invoices student qwen2.5-1.5b (teacher labels), Doc EM: 67.5% vs 74.3% (+6.83 points); Invoices student qwen2.5-1.5b (gold labels), JSON validity: 95.0% vs 98.2% (+3.17 points); Invoices student qwen2.5-1.5b (gold labels), Field micro-F1: 93.8% vs 91.5% (-2.37 points); Invoices student qwen2.5-1.5b (gold labels), Doc EM: 78.2% vs 68.0% (-10.17 points); Invoices student qwen2.5-1.5b (gold labels), Agreement: 93.5% vs 91.0% (-2.43 points).
+
+### Calibration
+
+![Banking77 reliability diagram, raw vs isotonic](reports/banking77/reliability_test.png)
+
+Two confidence definitions were compared on validation, before either was used at test time: the primary is the trie-constrained greedy label's own renormalised token-probability product; the alternative is free greedy generation scored by the mean per-token log-probability. AUROC is against the teacher and the gold label; ECE against each.
+
+| Task | Split | Confidence | n | AUROC/teacher | AUROC/gold | ECE/teacher | ECE/gold |
+|---|---|---|---|---|---|---|---|
+| Banking77 | valid | primary (chosen) | 1,030 | 0.877 | 0.799 | 2.8% | 17.0% |
+| Banking77 | valid | alternative | 1,030 | 0.874 | 0.811 | 9.2% | 24.1% |
+| Banking77 | test | primary (chosen) | 3,075 | 0.903 | 0.799 | 3.0% | 15.0% |
+| Banking77 | test | alternative | 3,075 | 0.901 | 0.807 | 9.3% | 21.8% |
+| Invoices | valid | primary (chosen) | 400 | 0.904 | 0.913 | 3.7% | 4.3% |
+| Invoices | valid | alternative | 400 | 0.903 | 0.908 | 10.0% | 9.3% |
+| Invoices | test | primary (chosen) | 600 | 0.846 | 0.846 | 14.1% | 14.1% |
+| Invoices | test | alternative | 600 | 0.858 | 0.858 | 32.1% | 32.1% |
+
+Banking77 student `qwen2.5-0.5b-full-s13`, ECE on test vs gold: 15.0% raw vs 3.7% after isotonic calibration.
+
+Invoices student `qwen2.5-1.5b-full-s13`, ECE on test vs gold: 14.1% raw vs 15.6% after isotonic calibration.
+
+### Choosing the base model
+
+**Banking77**
+
+| Base model | Validation metric | p95 ms |
+|---|---|---|
+| mlx-community/Qwen2.5-0.5B-Instruct-4bit | 88.2% | 74.8 |
+| mlx-community/Qwen2.5-1.5B-Instruct-4bit | 89.1% | 163 |
+
+Rule: use the larger base only if it gains at least 1 point on the validation metric and its p95 latency stays under 3.0x the smaller model's. Here the gain is below the 1 point minimum (+0.97 points) and the p95 ratio (2.18x) is under the 3.0x limit, so the smaller base was kept.
+
+**Invoices**
+
+| Base model | Validation metric | p95 ms |
+|---|---|---|
+| mlx-community/Qwen2.5-0.5B-Instruct-4bit | 94.7% | 1,102 |
+| mlx-community/Qwen2.5-1.5B-Instruct-4bit | 98.5% | 1,974 |
+
+Rule: use the larger base only if it gains at least 1 point on the validation metric and its p95 latency stays under 3.0x the smaller model's. Here the gain meets the 1 point minimum (+3.79 points) and the p95 ratio (1.79x) is under the 3.0x limit, so the larger base was selected.
+
+### What didn't work
+
+- Learning-rate schedule at the spec's peak rate (quick profile, 200 iterations, 3 seeds, Banking77): on the Apple M5 a constant rate reached 32.1% ± 31.8% mean validation agreement with the teacher and linear warm-up + cosine decay 68.9% ± 8.3%, with 1 and 0 of 3 seeds diverging (agreement below 10%); on the Apple M4 Max a constant rate reached 23.3% ± 38.0% mean validation agreement with the teacher and linear warm-up + cosine decay 33.9% ± 32.9%, with 2 and 1 of 3 seeds diverging (agreement below 10%). Warm-up + cosine is the default and did better on average, but it does not make short runs at this peak rate reliable. In the full profile, Banking77 converged on every seed; on invoices, the best validation checkpoint of 1 of 3 on the Apple M5 and 1 of 3 on the Apple M4 Max 0.5B seeds came at or before the end of warm-up, so those students stopped early.
+
+- The bigger Banking77 student (1.5B vs 0.5B, teacher labels) gained +0.97 points on validation agreement, below the 1 point minimum the base-model rule requires, for 2.18x the p95 latency (limit 3.0x); the rule kept the 0.5B base.
+
+- A Banking77 student trained on the gold labels reached 92.0% accuracy against gold, above both the same student trained on teacher labels (75.5%) and the teacher itself (75.8%); part of that gap is Banking77's own label noise (Ying and Thomas, 2022, flag about 14% of the training utterances as potential label errors), which caps how high any model's accuracy against gold can go.
+
+- Teacher prompt variants (same 200 Banking77 validation queries, same teacher model): snake-case labels (+0.5 pts accuracy at 1.3x the prompt tokens, 3.3x the cost per 1k); labels with examples (+4.0 pts accuracy at 4.3x the prompt tokens, 2.9x the cost per 1k). The spec prompt was kept for the recorded run.
+
+- Two confidence definitions were compared on validation, before either was used at test time: Banking77 AUROC 0.877 vs 0.874 (about equal), ECE 2.8% vs 9.2%, about 3.3x lower for the primary; Invoices AUROC 0.904 vs 0.903 (about equal), ECE 3.7% vs 10.0%, about 2.7x lower for the primary; so the primary (trie-constrained token-probability product) was kept over the alternative (free greedy generation, mean per-token log-probability). Reported honestly, on test: Banking77 AUROC 0.903 vs 0.901 (about equal), ECE 3.0% vs 9.3% (lower for the primary); Invoices AUROC 0.846 vs 0.858 (higher for the alternative), ECE 14.1% vs 32.1% (lower for the primary).
+
+- Invoices: the threshold chosen on the validation layouts did not transfer to the unseen test layouts — Agreement against the teacher met the 97.0% target on validation (98.5%, 0.0% escalation) but fell to 94.1% on test (1.7% escalation).
+
+### Spend and downloads
+
+| Task | Teacher labelling | Bake-off | Live bench |
+|---|---|---|---|
+| Banking77 | $0.0796 | $0.0211 | $0.000500 |
+| Invoices | $0.138 | $0.0116 | $0.000199 |
+
+Total spend for the whole build: $0.251 of a $14.00 global cap (17,302 teacher calls).
+
+Model downloads: 1.17 GB, within the 1.5 GB budget (student base 0.5B: 0.29 GB; student base 1.5B: 0.88 GB).
 <!-- /sync:results -->
 
 ## Configuration reference
