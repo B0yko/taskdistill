@@ -1,0 +1,2239 @@
+{
+  "task": "banking77",
+  "task_type": "classification",
+  "date": "2026-09-27T02:52:21+00:00",
+  "command": "taskdistill report --task banking77 --run qwen2.5-0.5b-full-s13 --out report_banking77",
+  "hardware": {
+    "model": "Mac16,9",
+    "cpu": "Apple M4 Max",
+    "memory_gb": 128.0,
+    "os": "macOS 26.5.2"
+  },
+  "teacher": {
+    "model": "deepseek/deepseek-v4.1-flash",
+    "provider": "deepinfra/fp8"
+  },
+  "selected_run": {
+    "run_id": "qwen2.5-0.5b-full-s13",
+    "reason": "chosen with --run; the validation selection was qwen2.5-1.5b-full-s13 (qwen2.5-1.5b-full-s13: best validation agreement (0.9019) among 1 run(s) of mlx-community/Qwen2.5-1.5B-Instruct-4bit; mlx-community/Qwen2.5-1.5B-Instruct-4bit vs mlx-community/Qwen2.5-0.5B-Instruct-4bit: large gains 1.26 points (>= 1.00) at 1.87x the small p95 (< 3x))",
+    "date": "2026-09-26T23:36:31+00:00",
+    "rule": {
+      "metric": "agreement",
+      "reference": "teacher",
+      "seed_rule": "best validation metric among the seeds of each base model (ties: smallest run id)",
+      "base_rule": "the larger base model only if it gains at least 1 point on the validation metric and its student p95 stays under 3x the smaller one's; otherwise the smaller",
+      "min_gain": 0.01,
+      "max_latency_ratio": 3.0,
+      "best_per_base": {
+        "mlx-community/Qwen2.5-0.5B-Instruct-4bit": "qwen2.5-0.5b-full-s13",
+        "mlx-community/Qwen2.5-1.5B-Instruct-4bit": "qwen2.5-1.5b-full-s13"
+      },
+      "decisions": [
+        {
+          "small_base": "mlx-community/Qwen2.5-0.5B-Instruct-4bit",
+          "large_base": "mlx-community/Qwen2.5-1.5B-Instruct-4bit",
+          "small_run": "qwen2.5-0.5b-full-s13",
+          "large_run": "qwen2.5-1.5b-full-s13",
+          "choice": "large",
+          "reason": "large gains 1.26 points (>= 1.00) at 1.87x the small p95 (< 3x)",
+          "metric": "agreement",
+          "reference": "teacher",
+          "small": 0.8893203883495145,
+          "large": 0.9019417475728155,
+          "gain": 0.012621359223300987,
+          "small_p95_ms": 27.824454032815986,
+          "large_p95_ms": 51.97833122219888,
+          "latency_ratio": 1.8680809032549557,
+          "min_gain": 0.01,
+          "max_latency_ratio": 3.0,
+          "n": 1030
+        }
+      ]
+    },
+    "candidates": {
+      "qwen2.5-0.5b-full-s13": {
+        "valid_metric": 0.8893203883495145,
+        "p95_ms": 27.824454032815986,
+        "base_model": "mlx-community/Qwen2.5-0.5B-Instruct-4bit",
+        "seed": 13,
+        "profile": "full"
+      },
+      "qwen2.5-0.5b-full-s14": {
+        "valid_metric": 0.8766990291262136,
+        "p95_ms": 152.25932052708194,
+        "base_model": "mlx-community/Qwen2.5-0.5B-Instruct-4bit",
+        "seed": 14,
+        "profile": "full"
+      },
+      "qwen2.5-0.5b-full-s15": {
+        "valid_metric": 0.883495145631068,
+        "p95_ms": 27.6688065030612,
+        "base_model": "mlx-community/Qwen2.5-0.5B-Instruct-4bit",
+        "seed": 15,
+        "profile": "full"
+      },
+      "qwen2.5-1.5b-full-s13": {
+        "valid_metric": 0.9019417475728155,
+        "p95_ms": 51.97833122219888,
+        "base_model": "mlx-community/Qwen2.5-1.5B-Instruct-4bit",
+        "seed": 13,
+        "profile": "full"
+      }
+    }
+  },
+  "test_access": {
+    "count": 8,
+    "entries": [
+      {
+        "date": "2026-09-26T22:59:34+00:00",
+        "run_id": "qwen2.5-0.5b-full-s13",
+        "command": "taskdistill demo banking77 --profile full (eval --select)"
+      },
+      {
+        "date": "2026-09-26T23:40:16+00:00",
+        "run_id": "qwen2.5-1.5b-full-s13",
+        "command": "taskdistill eval --task banking77 --select"
+      },
+      {
+        "date": "2026-09-26T23:40:24+00:00",
+        "run_id": "qwen2.5-0.5b-full-s13",
+        "command": "taskdistill eval --task banking77 --run qwen2.5-0.5b-full-s13"
+      },
+      {
+        "date": "2026-09-26T23:42:28+00:00",
+        "run_id": "qwen2.5-0.5b-full-s14",
+        "command": "taskdistill eval --task banking77 --run qwen2.5-0.5b-full-s14"
+      },
+      {
+        "date": "2026-09-26T23:44:32+00:00",
+        "run_id": "qwen2.5-0.5b-full-s15",
+        "command": "taskdistill eval --task banking77 --run qwen2.5-0.5b-full-s15"
+      },
+      {
+        "date": "2026-09-26T23:44:40+00:00",
+        "run_id": "qwen2.5-1.5b-full-s13",
+        "command": "taskdistill eval --task banking77 --run qwen2.5-1.5b-full-s13"
+      },
+      {
+        "date": "2026-09-27T00:09:05+00:00",
+        "run_id": "qwen2.5-1.5b-full-s13-gold",
+        "command": "taskdistill eval --task banking77 --run qwen2.5-1.5b-full-s13-gold"
+      },
+      {
+        "date": "2026-09-27T00:16:21+00:00",
+        "run_id": "zero-shot-qwen2.5-0.5b",
+        "command": "taskdistill eval --task banking77 --zero-shot --base mlx-community/Qwen2.5-0.5B-Instruct-4bit"
+      }
+    ]
+  },
+  "quality": {
+    "task_type": "classification",
+    "provenance": [
+      {
+        "source": "eval",
+        "run_id": "qwen2.5-0.5b-full-s13",
+        "file": "eval/qwen2.5-0.5b-full-s13/eval_test.json",
+        "date": "2026-09-26T23:40:24+00:00",
+        "command": "taskdistill eval --task banking77 --run qwen2.5-0.5b-full-s13",
+        "hardware": {
+          "model": "Mac16,9",
+          "cpu": "Apple M4 Max",
+          "memory_gb": 128.0,
+          "os": "macOS 26.5.2"
+        }
+      },
+      {
+        "source": "eval",
+        "run_id": "zero-shot-qwen2.5-0.5b",
+        "file": "eval/zero-shot-qwen2.5-0.5b/eval_test.json",
+        "date": "2026-09-27T00:16:21+00:00",
+        "command": "taskdistill eval --task banking77 --zero-shot --base mlx-community/Qwen2.5-0.5B-Instruct-4bit",
+        "hardware": {
+          "model": "Mac16,9",
+          "cpu": "Apple M4 Max",
+          "memory_gb": 128.0,
+          "os": "macOS 26.5.2"
+        }
+      },
+      {
+        "source": "eval",
+        "run_id": "qwen2.5-0.5b-full-s14",
+        "file": "eval/qwen2.5-0.5b-full-s14/eval_test.json",
+        "date": "2026-09-26T23:42:28+00:00",
+        "command": "taskdistill eval --task banking77 --run qwen2.5-0.5b-full-s14",
+        "hardware": {
+          "model": "Mac16,9",
+          "cpu": "Apple M4 Max",
+          "memory_gb": 128.0,
+          "os": "macOS 26.5.2"
+        }
+      },
+      {
+        "source": "eval",
+        "run_id": "qwen2.5-0.5b-full-s15",
+        "file": "eval/qwen2.5-0.5b-full-s15/eval_test.json",
+        "date": "2026-09-26T23:44:32+00:00",
+        "command": "taskdistill eval --task banking77 --run qwen2.5-0.5b-full-s15",
+        "hardware": {
+          "model": "Mac16,9",
+          "cpu": "Apple M4 Max",
+          "memory_gb": 128.0,
+          "os": "macOS 26.5.2"
+        }
+      },
+      {
+        "source": "eval",
+        "run_id": "qwen2.5-1.5b-full-s13",
+        "file": "eval/qwen2.5-1.5b-full-s13/eval_test.json",
+        "date": "2026-09-26T23:44:40+00:00",
+        "command": "taskdistill eval --task banking77 --run qwen2.5-1.5b-full-s13",
+        "hardware": {
+          "model": "Mac16,9",
+          "cpu": "Apple M4 Max",
+          "memory_gb": 128.0,
+          "os": "macOS 26.5.2"
+        }
+      },
+      {
+        "source": "eval",
+        "run_id": "qwen2.5-1.5b-full-s13-gold",
+        "file": "eval/qwen2.5-1.5b-full-s13-gold/eval_test.json",
+        "date": "2026-09-27T00:09:05+00:00",
+        "command": "taskdistill eval --task banking77 --run qwen2.5-1.5b-full-s13-gold",
+        "hardware": {
+          "model": "Mac16,9",
+          "cpu": "Apple M4 Max",
+          "memory_gb": 128.0,
+          "os": "macOS 26.5.2"
+        }
+      }
+    ],
+    "split": "test",
+    "n": 3075,
+    "columns": [
+      "accuracy",
+      "macro_f1",
+      "agreement"
+    ],
+    "student_columns": [
+      "accuracy",
+      "macro_f1",
+      "agreement",
+      "ece",
+      "auroc"
+    ],
+    "rows": [
+      {
+        "system": "teacher",
+        "name": "teacher (deepseek/deepseek-v4.1-flash)",
+        "base_model": "deepseek/deepseek-v4.1-flash",
+        "labels": null,
+        "run_ids": [
+          "qwen2.5-0.5b-full-s13"
+        ],
+        "n": 3075,
+        "metrics": {
+          "accuracy": 0.7580487804878049,
+          "macro_f1": 0.74851103866949,
+          "agreement": null
+        },
+        "ci": {
+          "accuracy": [
+            0.7417886178861789,
+            0.7739837398373983
+          ],
+          "macro_f1": [
+            0.7301194224728778,
+            0.760904032810389
+          ],
+          "agreement": [
+            1.0,
+            1.0
+          ]
+        },
+        "ci_cluster": null,
+        "recorded": true,
+        "has_gold": true
+      },
+      {
+        "system": "zero-shot",
+        "name": "zero-shot qwen2.5-0.5b",
+        "base_model": "mlx-community/Qwen2.5-0.5B-Instruct-4bit",
+        "labels": "zero-shot",
+        "run_ids": [
+          "zero-shot-qwen2.5-0.5b"
+        ],
+        "n": 3075,
+        "metrics": {
+          "accuracy": 0.23089430894308943,
+          "macro_f1": 0.2059840805700092,
+          "agreement": 0.2569285947179654,
+          "ece": 0.35278215824061127,
+          "auroc": 0.7366756990143822
+        },
+        "ci": {
+          "accuracy": [
+            0.21691056910569106,
+            0.24520325203252033
+          ],
+          "macro_f1": [
+            0.19090612314181582,
+            0.21680374869270194
+          ],
+          "agreement": [
+            0.2416807304274936,
+            0.2712478435317951
+          ],
+          "ece": [
+            0.33886100886894316,
+            0.3664370962332065
+          ],
+          "auroc": [
+            0.7165988545731424,
+            0.7597987008552451
+          ]
+        },
+        "ci_cluster": null,
+        "calibration": {
+          "reference": "gold",
+          "ece": 0.35278215824061127,
+          "auroc": 0.7366756990143822,
+          "brier": 0.2894874856816523,
+          "isotonic_ece": 0.02995994637576942
+        }
+      },
+      {
+        "system": "tfidf",
+        "name": "TF-IDF + logistic regression (teacher labels)",
+        "base_model": null,
+        "labels": "teacher",
+        "run_ids": [
+          "qwen2.5-0.5b-full-s13"
+        ],
+        "n": 3075,
+        "metrics": {
+          "accuracy": 0.7245528455284553,
+          "macro_f1": 0.7135404963610564,
+          "agreement": 0.8350179328333877
+        },
+        "ci": {
+          "accuracy": [
+            0.7076341463414634,
+            0.7401707317073171
+          ],
+          "macro_f1": [
+            0.6968827814953397,
+            0.7248861498469676
+          ],
+          "agreement": [
+            0.8220898833683542,
+            0.8481127196087976
+          ]
+        },
+        "ci_cluster": null,
+        "C": 3.0
+      },
+      {
+        "system": "student",
+        "name": "student qwen2.5-0.5b (teacher labels, 3 seeds)",
+        "base_model": "mlx-community/Qwen2.5-0.5B-Instruct-4bit",
+        "labels": "teacher",
+        "run_ids": [
+          "qwen2.5-0.5b-full-s13",
+          "qwen2.5-0.5b-full-s14",
+          "qwen2.5-0.5b-full-s15"
+        ],
+        "n": 3075,
+        "profile": "full",
+        "backend": "mlx",
+        "n_seeds": 3,
+        "metrics": {
+          "accuracy": 0.7592411924119241,
+          "macro_f1": 0.7490663593016351,
+          "agreement": 0.8884903814802739,
+          "ece": 0.1598001485806613,
+          "auroc": 0.8033345898890176
+        },
+        "std": {
+          "accuracy": 0.004935524092284967,
+          "macro_f1": 0.004687797053953697,
+          "agreement": 0.0031443269517420864,
+          "ece": 0.0032017208486085883,
+          "auroc": 0.007788499961749345
+        },
+        "per_seed": [
+          {
+            "run_id": "qwen2.5-0.5b-full-s13",
+            "seed": 13,
+            "n": 3075,
+            "metrics": {
+              "accuracy": 0.7547967479674796,
+              "macro_f1": 0.7441754790521363,
+              "agreement": 0.8897945875448321,
+              "ece": 0.16009173728021955,
+              "auroc": 0.7998924592322206
+            }
+          },
+          {
+            "run_id": "qwen2.5-0.5b-full-s14",
+            "seed": 14,
+            "n": 3075,
+            "metrics": {
+              "accuracy": 0.7645528455284553,
+              "macro_f1": 0.7535205077197547,
+              "agreement": 0.8907727420932507,
+              "ece": 0.1564626073087199,
+              "auroc": 0.7978602028994362
+            }
+          },
+          {
+            "run_id": "qwen2.5-0.5b-full-s15",
+            "seed": 15,
+            "n": 3075,
+            "metrics": {
+              "accuracy": 0.7583739837398374,
+              "macro_f1": 0.7495030911330143,
+              "agreement": 0.8849038148027388,
+              "ece": 0.16284610115304443,
+              "auroc": 0.8122511075353961
+            }
+          }
+        ],
+        "selected_run": "qwen2.5-0.5b-full-s13",
+        "selected_seed": 13,
+        "selected_metrics": {
+          "accuracy": 0.7547967479674796,
+          "macro_f1": 0.7441754790521363,
+          "agreement": 0.8897945875448321,
+          "ece": 0.16009173728021955,
+          "auroc": 0.7998924592322206
+        },
+        "ci": {
+          "accuracy": [
+            0.7382113821138211,
+            0.7687804878048781
+          ],
+          "macro_f1": [
+            0.7265664774846569,
+            0.7560391103785222
+          ],
+          "agreement": [
+            0.878953725930573,
+            0.9006868026984305
+          ],
+          "ece": [
+            0.1473841198345584,
+            0.17440365717711212
+          ],
+          "auroc": [
+            0.782310606266104,
+            0.816371500832348
+          ]
+        },
+        "ci_cluster": null,
+        "calibration": {
+          "reference": "gold",
+          "ece": 0.16009173728021955,
+          "auroc": 0.7998924592322206,
+          "brier": 0.17628685457867221,
+          "isotonic_ece": 0.028588954753566313
+        }
+      },
+      {
+        "system": "student",
+        "name": "student qwen2.5-1.5b (teacher labels)",
+        "base_model": "mlx-community/Qwen2.5-1.5B-Instruct-4bit",
+        "labels": "teacher",
+        "run_ids": [
+          "qwen2.5-1.5b-full-s13"
+        ],
+        "n": 3075,
+        "profile": "full",
+        "backend": "mlx",
+        "n_seeds": 1,
+        "metrics": {
+          "accuracy": 0.7632520325203253,
+          "macro_f1": 0.7532294289233067,
+          "agreement": 0.8933811542223671,
+          "ece": 0.15468580173493546,
+          "auroc": 0.8030458569977105
+        },
+        "std": {
+          "accuracy": null,
+          "macro_f1": null,
+          "agreement": null,
+          "ece": null,
+          "auroc": null
+        },
+        "per_seed": [
+          {
+            "run_id": "qwen2.5-1.5b-full-s13",
+            "seed": 13,
+            "n": 3075,
+            "metrics": {
+              "accuracy": 0.7632520325203253,
+              "macro_f1": 0.7532294289233067,
+              "agreement": 0.8933811542223671,
+              "ece": 0.15468580173493546,
+              "auroc": 0.8030458569977105
+            }
+          }
+        ],
+        "selected_run": "qwen2.5-1.5b-full-s13",
+        "selected_seed": 13,
+        "selected_metrics": {
+          "accuracy": 0.7632520325203253,
+          "macro_f1": 0.7532294289233067,
+          "agreement": 0.8933811542223671,
+          "ece": 0.15468580173493546,
+          "auroc": 0.8030458569977105
+        },
+        "ci": {
+          "accuracy": [
+            0.7482926829268293,
+            0.7785447154471545
+          ],
+          "macro_f1": [
+            0.7375811939753604,
+            0.764982774645304
+          ],
+          "agreement": [
+            0.8821202053359497,
+            0.9042041036613906
+          ],
+          "ece": [
+            0.1411333758007135,
+            0.1686896715297984
+          ],
+          "auroc": [
+            0.7839849984002906,
+            0.8207152311797093
+          ]
+        },
+        "ci_cluster": null,
+        "calibration": {
+          "reference": "gold",
+          "ece": 0.15468580173493546,
+          "auroc": 0.8030458569977105,
+          "brier": 0.16941815281658204,
+          "isotonic_ece": 0.030974963039889163
+        }
+      },
+      {
+        "system": "student",
+        "name": "student qwen2.5-1.5b (gold labels)",
+        "base_model": "mlx-community/Qwen2.5-1.5B-Instruct-4bit",
+        "labels": "gold",
+        "run_ids": [
+          "qwen2.5-1.5b-full-s13-gold"
+        ],
+        "n": 3075,
+        "profile": "full",
+        "backend": "mlx",
+        "n_seeds": 1,
+        "metrics": {
+          "accuracy": 0.9209756097560976,
+          "macro_f1": 0.9209402429487255,
+          "agreement": 0.7668731659602217,
+          "ece": 0.016869826820652266,
+          "auroc": 0.9082952616772453
+        },
+        "std": {
+          "accuracy": null,
+          "macro_f1": null,
+          "agreement": null,
+          "ece": null,
+          "auroc": null
+        },
+        "per_seed": [
+          {
+            "run_id": "qwen2.5-1.5b-full-s13-gold",
+            "seed": 13,
+            "n": 3075,
+            "metrics": {
+              "accuracy": 0.9209756097560976,
+              "macro_f1": 0.9209402429487255,
+              "agreement": 0.7668731659602217,
+              "ece": 0.016869826820652266,
+              "auroc": 0.9082952616772453
+            }
+          }
+        ],
+        "selected_run": "qwen2.5-1.5b-full-s13-gold",
+        "selected_seed": 13,
+        "selected_metrics": {
+          "accuracy": 0.9209756097560976,
+          "macro_f1": 0.9209402429487255,
+          "agreement": 0.7668731659602217,
+          "ece": 0.016869826820652266,
+          "auroc": 0.9082952616772453
+        },
+        "ci": {
+          "accuracy": [
+            0.911219512195122,
+            0.9297560975609757
+          ],
+          "macro_f1": [
+            0.9102837008117262,
+            0.9290200272474233
+          ],
+          "agreement": [
+            0.751386577983168,
+            0.781364812827473
+          ],
+          "ece": [
+            0.014744380792526797,
+            0.028060302851615305
+          ],
+          "auroc": [
+            0.8886537611229496,
+            0.9251374648421173
+          ]
+        },
+        "ci_cluster": null,
+        "calibration": {
+          "reference": "gold",
+          "ece": 0.016869826820652266,
+          "auroc": 0.9082952616772453,
+          "brier": 0.05150797293165479,
+          "isotonic_ece": 0.01784521637012595
+        }
+      },
+      {
+        "system": "cascade",
+        "name": "cascade (qwen2.5-0.5b-full-s13, t = 0.8872)",
+        "base_model": "mlx-community/Qwen2.5-0.5B-Instruct-4bit",
+        "labels": "teacher",
+        "run_ids": [
+          "qwen2.5-0.5b-full-s13"
+        ],
+        "n": 3075,
+        "metrics": {
+          "accuracy": 0.7632520325203253,
+          "macro_f1": 0.7525639683684315,
+          "agreement": 0.9775024453863711
+        },
+        "ci": {
+          "accuracy": [
+            0.7466666666666667,
+            0.778869918699187
+          ],
+          "macro_f1": [
+            0.7360307168607677,
+            0.764675657673026
+          ],
+          "agreement": [
+            0.9723388318803118,
+            0.9827194104588994
+          ]
+        },
+        "ci_cluster": null,
+        "threshold": 0.8871767838452246,
+        "escalation_rate": 0.22048780487804878,
+        "recorded": true
+      }
+    ],
+    "cluster_bootstrap": false,
+    "n_groups": null,
+    "per_group": null,
+    "per_field": null,
+    "per_trait": null,
+    "confidence_comparison": {
+      "reference": "teacher",
+      "definitions": {
+        "primary": "trie-constrained greedy label; product of the renormalised token probabilities",
+        "alternative": "free greedy generation; exp(mean token log-prob), scored on the free output's own label"
+      },
+      "valid": {
+        "primary": {
+          "n": 1030,
+          "mean_confidence": 0.9152667328757899,
+          "auroc_vs_teacher": 0.8663717153144871,
+          "auroc_vs_gold": 0.7903652300604065,
+          "accuracy_vs_teacher": 0.8893203883495145,
+          "accuracy_vs_gold": 0.7252427184466019,
+          "ece_vs_teacher": 0.03423706850740357,
+          "ece_vs_gold": 0.1900240144291879
+        },
+        "alternative": {
+          "n": 1030,
+          "mean_confidence": 0.9757602967272899,
+          "auroc_vs_teacher": 0.8722803187006818,
+          "auroc_vs_gold": 0.8010912909588885,
+          "accuracy_vs_teacher": 0.8893203883495145,
+          "accuracy_vs_gold": 0.7252427184466019,
+          "ece_vs_teacher": 0.08643990837777414,
+          "ece_vs_gold": 0.25051757828068677
+        },
+        "chosen": "primary",
+        "better_auroc": "alternative"
+      },
+      "test": {
+        "primary": {
+          "n": 3075,
+          "mean_confidence": 0.9148884852476985,
+          "auroc_vs_teacher": 0.9102181044707188,
+          "auroc_vs_gold": 0.7998924592322206,
+          "accuracy_vs_teacher": 0.8897945875448321,
+          "accuracy_vs_gold": 0.7547967479674796,
+          "ece_vs_teacher": 0.025514071937835867,
+          "ece_vs_gold": 0.16009173728021955
+        },
+        "alternative": {
+          "n": 3075,
+          "mean_confidence": 0.9749718738803089,
+          "auroc_vs_teacher": 0.9087550764200424,
+          "auroc_vs_gold": 0.8056497759472102,
+          "accuracy_vs_teacher": 0.8897945875448321,
+          "accuracy_vs_gold": 0.7547967479674796,
+          "ece_vs_teacher": 0.08531745925465894,
+          "ece_vs_gold": 0.22017512591282856
+        },
+        "chosen": "primary",
+        "better_auroc": "primary"
+      }
+    },
+    "test_scorings": 3,
+    "profile_fast": false,
+    "notes": []
+  },
+  "operating_point": {
+    "run_id": "qwen2.5-0.5b-full-s13",
+    "available": true,
+    "reference": "teacher",
+    "metric": "agreement",
+    "metric_key": "agreement",
+    "target": 0.97,
+    "max_drop": null,
+    "target_value": 0.97,
+    "threshold": 0.8871767838452246,
+    "always_escalate": false,
+    "warning": null,
+    "escalation_rate": {
+      "valid": 0.22815533980582525,
+      "test": 0.21975872187805673
+    },
+    "quality": {
+      "valid": 0.970873786407767,
+      "test": 0.9775024453863711
+    },
+    "target_met_on_test": true,
+    "cascade_minus_teacher": {
+      "target_metric": {
+        "metric": "agreement",
+        "point": -0.0224975546136289,
+        "ci": [
+          -0.027661168119688207,
+          -0.01728058954110053
+        ],
+        "ci_cluster": null,
+        "source": "bootstrap",
+        "reference": "teacher",
+        "target_metric": "agreement"
+      },
+      "gold_metric": {
+        "metric": "accuracy",
+        "point": 0.005203252032520367,
+        "ci": [
+          0.0006504065040650042,
+          0.009756097560975618
+        ],
+        "ci_cluster": null,
+        "source": "bootstrap"
+      }
+    },
+    "provenance": {
+      "source": "eval",
+      "run_id": "qwen2.5-0.5b-full-s13",
+      "file": "eval/qwen2.5-0.5b-full-s13/eval_test.json",
+      "date": "2026-09-26T23:40:24+00:00",
+      "command": "taskdistill eval --task banking77 --run qwen2.5-0.5b-full-s13",
+      "hardware": {
+        "model": "Mac16,9",
+        "cpu": "Apple M4 Max",
+        "memory_gb": 128.0,
+        "os": "macOS 26.5.2"
+      }
+    },
+    "curve_png": "threshold_curve.png",
+    "reliability_png": [
+      "reliability_test.png"
+    ],
+    "notes": []
+  },
+  "cost_latency": {
+    "teacher": {
+      "usd_per_request": 5.931765853658536e-06,
+      "usd_per_1k": 0.0059317658536585365,
+      "latency_ms": {
+        "p50": 594.2275839624926,
+        "p95": 1242.0033750182472,
+        "mean": 682.975285203817,
+        "n": 3075
+      },
+      "n": 3075,
+      "n_cost": 3075,
+      "cost_sources": {
+        "usage.cost": 3075
+      },
+      "pricing_snapshot_date": "2026-09-26",
+      "record_sources": {
+        "recording": 3075
+      },
+      "recorded_between": [
+        "2026-09-26",
+        "2026-09-26"
+      ],
+      "concurrency": 8,
+      "concurrency_source": "default of the live teacher client",
+      "recorded": true,
+      "source": "recorded live labelling calls on the test split (cache hits and retried attempts excluded)",
+      "list_price_usd_per_1k": 0.05807896585365854,
+      "list_price_note": "the recorded token counts at the pricing snapshot's list price, without the provider's prompt cache"
+    },
+    "student": {
+      "usd_per_request": 3.508152243383746e-08,
+      "usd_per_1k": 3.508152243383746e-05,
+      "latency_ms": {
+        "p50": 19.93339555338025,
+        "p95": 31.735847936943173,
+        "mean": 21.048913460302476,
+        "n": 300
+      },
+      "source": "bench",
+      "flagged": false,
+      "note": "measured by `taskdistill bench` against `serve --threshold 0` (bench_20260927T025124Z.json): warm, concurrency 1",
+      "cost_basis": "local energy estimate over the mean student latency",
+      "eval_latency_ms": {
+        "p50": 16.985333058983088,
+        "p95": 26.840079296380278,
+        "mean": 18.449429929052002,
+        "n": 3075
+      },
+      "provenance": {
+        "source": "bench",
+        "file": "bench/bench_20260927T025124Z.json",
+        "date": "2026-09-27T02:51:24+00:00",
+        "command": "taskdistill bench --url http://127.0.0.1:8111 --task banking77 --n 300 --warmup 20 --yes --max-usd 0.4",
+        "hardware": {
+          "model": "Mac16,9",
+          "cpu": "Apple M4 Max",
+          "memory_gb": 128.0,
+          "os": "macOS 26.5.2"
+        },
+        "machine_state": {
+          "timestamp": "2026-09-27T02:51:17+00:00",
+          "load_average": [
+            15.01,
+            12.64,
+            10.21
+          ],
+          "memory": {
+            "free_percent": 73,
+            "pressure_free_percent": 73,
+            "swap_used_gb": 37.16
+          }
+        }
+      }
+    },
+    "cascade": {
+      "usd_per_request": 1.3573444167427806e-06,
+      "usd_per_1k": 0.0013573444167427806,
+      "latency_ms": {
+        "p50": 21.48572902660817,
+        "p95": 853.5278645693325,
+        "mean": 177.92978180320156,
+        "n": 300
+      },
+      "n": 3075,
+      "n_escalated": 678,
+      "escalation_rate": 0.22048780487804878,
+      "latency_n": 300,
+      "latency_escalation_rate": 0.21333333333333335,
+      "latency_scope": "benched test requests",
+      "imputed": {
+        "teacher_cost": 0,
+        "teacher_latency": 0
+      },
+      "incomplete": null,
+      "threshold": 0.8871767838452246,
+      "confidence": "confidence",
+      "student_latency_source": "bench",
+      "source": "composed per test request: student latency, plus the recorded teacher latency when escalated",
+      "cost_basis": "student energy for every request plus the recorded teacher cost of escalated requests",
+      "list_price_usd_per_1k": 0.012855166075279366
+    },
+    "assumptions": {
+      "local_watts": 20.0,
+      "usd_per_kwh": 0.3,
+      "hardware_usd": 0.0,
+      "amortisation_hours": 0.0,
+      "amortisation_enabled": false,
+      "text": "local cost = 20 W x wall time x $0.3/kWh; hardware amortisation off"
+    },
+    "predictions_backend": "mlx",
+    "notes": [
+      "cascade latency is composed over the 300 benched test requests (21.3% escalated); the escalation rate and cost cover all 3075"
+    ]
+  },
+  "assumptions": {
+    "local_watts": 20.0,
+    "usd_per_kwh": 0.3,
+    "hardware_usd": 0.0,
+    "amortisation_hours": 0.0,
+    "amortisation_enabled": false,
+    "text": "local cost = 20 W x wall time x $0.3/kWh; hardware amortisation off"
+  },
+  "break_even": {
+    "volume": 17419,
+    "requests": 17419,
+    "volume_exact": 17418.447228535802,
+    "lower_bound": false,
+    "reason": null,
+    "notes": [],
+    "labelling_usd": 0.0789616184,
+    "labelling_source": "recorded",
+    "training_usd": 0.0007176999999999999,
+    "training_wall_seconds": 430.62,
+    "training_run": "qwen2.5-0.5b-full-s13",
+    "teacher_usd_per_request": 5.931765853658536e-06,
+    "cascade_usd_per_request": 1.3573444167427806e-06,
+    "savings_usd_per_request": 4.574421436915755e-06,
+    "formula": "(teacher labelling cost + training energy cost) / (teacher - cascade cost per request)",
+    "assumptions": "local cost = 20 W x wall time x $0.3/kWh; hardware amortisation off",
+    "list_price": {
+      "savings_usd_per_request": 4.5223799778379175e-05,
+      "volume": 1762,
+      "note": "teacher and cascade priced at the list price without prompt caching; labelling cost as paid"
+    }
+  },
+  "labelling_cost": {
+    "usd": 0.0789616184,
+    "source": "recorded",
+    "n_requests": 12979,
+    "n_priced": 12979
+  },
+  "live_bench": {
+    "student_only": {
+      "file": "bench_20260927T025124Z.json",
+      "date": "2026-09-27T02:51:24+00:00",
+      "mode": "student_only",
+      "run_id": "qwen2.5-0.5b-full-s13",
+      "threshold": 0.0,
+      "teacher": "live",
+      "n": 300,
+      "warmup": 20,
+      "concurrency": 1,
+      "latency_ms": {
+        "p50": 19.93339555338025,
+        "p95": 31.735847936943173,
+        "mean": 21.048913460302476,
+        "n": 300
+      },
+      "escalation_rate": 0.0,
+      "route_counts": {
+        "student": 300
+      },
+      "reasons": {},
+      "spend_usd": 0.0,
+      "spend_note": null,
+      "errors": 0,
+      "failed_escalations": 0,
+      "stopped": null,
+      "machine_state": {
+        "timestamp": "2026-09-27T02:51:17+00:00",
+        "load_average": [
+          15.01,
+          12.64,
+          10.21
+        ],
+        "memory": {
+          "free_percent": 73,
+          "pressure_free_percent": 73,
+          "swap_used_gb": 37.16
+        }
+      },
+      "hardware": {
+        "model": "Mac16,9",
+        "cpu": "Apple M4 Max",
+        "memory_gb": 128.0,
+        "os": "macOS 26.5.2"
+      },
+      "command": "taskdistill bench --url http://127.0.0.1:8111 --task banking77 --n 300 --warmup 20 --yes --max-usd 0.4",
+      "matches_selected_run": true
+    },
+    "cascade": {
+      "file": "bench_20260927T025220Z.json",
+      "date": "2026-09-27T02:52:20+00:00",
+      "mode": "cascade",
+      "run_id": "qwen2.5-0.5b-full-s13",
+      "threshold": 0.8871767838452246,
+      "teacher": "live",
+      "n": 300,
+      "warmup": 20,
+      "concurrency": 1,
+      "latency_ms": {
+        "p50": 31.327207980211824,
+        "p95": 814.7040875628591,
+        "mean": 167.32267897653705,
+        "n": 300
+      },
+      "escalation_rate": 0.21333333333333335,
+      "route_counts": {
+        "student": 236,
+        "teacher": 64
+      },
+      "reasons": {
+        "low_confidence": 64
+      },
+      "spend_usd": 0.000499919,
+      "spend_note": null,
+      "errors": 0,
+      "failed_escalations": 0,
+      "stopped": null,
+      "machine_state": {
+        "timestamp": "2026-09-27T02:51:29+00:00",
+        "load_average": [
+          14.16,
+          12.56,
+          10.22
+        ],
+        "memory": {
+          "free_percent": 96,
+          "pressure_free_percent": 96,
+          "swap_used_gb": 37.16
+        }
+      },
+      "hardware": {
+        "model": "Mac16,9",
+        "cpu": "Apple M4 Max",
+        "memory_gb": 128.0,
+        "os": "macOS 26.5.2"
+      },
+      "command": "taskdistill bench --url http://127.0.0.1:8111 --task banking77 --n 300 --warmup 20 --yes --max-usd 0.4",
+      "matches_selected_run": true
+    },
+    "cross_check": {
+      "cascade": {
+        "composed_p50": 21.48572902660817,
+        "composed_p95": 853.5278645693325,
+        "composed_n": 300,
+        "measured_p50": 31.327207980211824,
+        "measured_p95": 814.7040875628591,
+        "measured_n": 300,
+        "ratio_p50": 1.4580472434245009,
+        "ratio_p95": 0.9545137556510087,
+        "test_escalation_rate": 0.21975872187805673,
+        "measured_escalation_rate": 0.21333333333333335
+      },
+      "student_only": {
+        "measured_p50": 19.93339555338025,
+        "measured_p95": 31.735847936943173,
+        "eval_p50": 16.985333058983088,
+        "eval_p95": 26.840079296380278
+      }
+    },
+    "notes": []
+  },
+  "serve_log": null,
+  "training": [
+    {
+      "run_id": "qwen2.5-0.5b-full-s13",
+      "base_model": "mlx-community/Qwen2.5-0.5B-Instruct-4bit",
+      "backend": "mlx",
+      "profile": "full",
+      "labels": "teacher",
+      "seed": 13,
+      "examples": 8874,
+      "dropped_by_length_filter": 0,
+      "dropped_no_gold": 0,
+      "iterations": 2219,
+      "epochs": 2.0005,
+      "wall_minutes": 7.1770000000000005,
+      "peak_memory_gb": 3.499,
+      "tokens_per_second": 2546.8,
+      "adapter_mb": 35.23,
+      "best_iteration": 2218,
+      "best_val_loss": 0.07149506360292435
+    },
+    {
+      "run_id": "qwen2.5-0.5b-full-s14",
+      "base_model": "mlx-community/Qwen2.5-0.5B-Instruct-4bit",
+      "backend": "mlx",
+      "profile": "full",
+      "labels": "teacher",
+      "seed": 14,
+      "examples": 8874,
+      "dropped_by_length_filter": 0,
+      "dropped_no_gold": 0,
+      "iterations": 2219,
+      "epochs": 2.0005,
+      "wall_minutes": 7.144833333333334,
+      "peak_memory_gb": 3.499,
+      "tokens_per_second": 2560.8,
+      "adapter_mb": 35.23,
+      "best_iteration": 2209,
+      "best_val_loss": 0.07602591067552567
+    },
+    {
+      "run_id": "qwen2.5-0.5b-full-s15",
+      "base_model": "mlx-community/Qwen2.5-0.5B-Instruct-4bit",
+      "backend": "mlx",
+      "profile": "full",
+      "labels": "teacher",
+      "seed": 15,
+      "examples": 8874,
+      "dropped_by_length_filter": 0,
+      "dropped_no_gold": 0,
+      "iterations": 2219,
+      "epochs": 2.0005,
+      "wall_minutes": 7.150833333333334,
+      "peak_memory_gb": 3.499,
+      "tokens_per_second": 2558.0,
+      "adapter_mb": 35.23,
+      "best_iteration": 2219,
+      "best_val_loss": 0.07165805995464325
+    },
+    {
+      "run_id": "qwen2.5-1.5b-full-s13",
+      "base_model": "mlx-community/Qwen2.5-1.5B-Instruct-4bit",
+      "backend": "mlx",
+      "profile": "full",
+      "labels": "teacher",
+      "seed": 13,
+      "examples": 8874,
+      "dropped_by_length_filter": 0,
+      "dropped_no_gold": 0,
+      "iterations": 2219,
+      "epochs": 2.0005,
+      "wall_minutes": 19.43316666666667,
+      "peak_memory_gb": 6.26,
+      "tokens_per_second": 997.2,
+      "adapter_mb": 73.9,
+      "best_iteration": 2218,
+      "best_val_loss": 0.062489740550518036
+    },
+    {
+      "run_id": "qwen2.5-1.5b-full-s13-gold",
+      "base_model": "mlx-community/Qwen2.5-1.5B-Instruct-4bit",
+      "backend": "mlx",
+      "profile": "full",
+      "labels": "gold",
+      "seed": 13,
+      "examples": 8874,
+      "dropped_by_length_filter": 0,
+      "dropped_no_gold": 0,
+      "iterations": 2219,
+      "epochs": 2.0005,
+      "wall_minutes": 19.2775,
+      "peak_memory_gb": 6.26,
+      "tokens_per_second": 964.3,
+      "adapter_mb": 73.9,
+      "best_iteration": 1546,
+      "best_val_loss": 0.051185499876737595
+    }
+  ],
+  "dataset": {
+    "splits": {
+      "train": 8874,
+      "valid": 1030,
+      "test": 3075
+    },
+    "dataset_card": "dataset_card.md",
+    "curate_stats": {
+      "task": "banking77",
+      "task_type": "classification",
+      "date": "2026-09-26T22:49:30+00:00",
+      "splits": {
+        "train": 8874,
+        "valid": 1030,
+        "test": 3075
+      },
+      "split_sizes": {
+        "split": {
+          "train": 8926,
+          "valid": 1037,
+          "test": 3079
+        },
+        "dedupe": {
+          "train": 8900,
+          "valid": 1036,
+          "test": 3075
+        },
+        "cross_split": {
+          "train": 8874,
+          "valid": 1034,
+          "test": 3075
+        },
+        "label": {
+          "train": 8874,
+          "valid": 1030,
+          "test": 3075
+        },
+        "length": {
+          "train": 8874,
+          "valid": 1030,
+          "test": 3075
+        }
+      },
+      "sources": {
+        "train": {
+          "recorded": 8874,
+          "labelled": 0,
+          "teacher_invalid": 0,
+          "with_gold": 8874
+        },
+        "valid": {
+          "recorded": 0,
+          "labelled": 1030,
+          "teacher_invalid": 0,
+          "with_gold": 1030
+        },
+        "test": {
+          "recorded": 7,
+          "labelled": 3060,
+          "teacher_invalid": 8,
+          "with_gold": 3075
+        }
+      },
+      "distribution": {
+        "kind": "label",
+        "teacher": {
+          "train": {
+            "Refund_not_showing_up": 160,
+            "activate_my_card": 166,
+            "age_limit": 104,
+            "apple_pay_or_google_pay": 102,
+            "atm_support": 87,
+            "automatic_top_up": 120,
+            "balance_not_updated_after_bank_transfer": 72,
+            "balance_not_updated_after_cheque_or_cash_deposit": 159,
+            "beneficiary_not_allowed": 67,
+            "cancel_transfer": 148,
+            "card_about_to_expire": 93,
+            "card_acceptance": 60,
+            "card_arrival": 29,
+            "card_delivery_estimate": 250,
+            "card_linking": 97,
+            "card_not_working": 125,
+            "card_payment_fee_charged": 161,
+            "card_payment_not_recognised": 99,
+            "card_payment_wrong_exchange_rate": 84,
+            "card_swallowed": 55,
+            "cash_withdrawal_charge": 179,
+            "cash_withdrawal_not_recognised": 69,
+            "change_pin": 159,
+            "compromised_card": 156,
+            "contactless_not_working": 25,
+            "country_support": 172,
+            "declined_card_payment": 220,
+            "declined_cash_withdrawal": 150,
+            "declined_transfer": 122,
+            "direct_debit_payment_not_recognised": 92,
+            "disposable_card_limits": 115,
+            "edit_personal_details": 109,
+            "exchange_charge": 106,
+            "exchange_rate": 265,
+            "exchange_via_app": 62,
+            "extra_charge_on_statement": 206,
+            "failed_transfer": 151,
+            "fiat_currency_support": 154,
+            "get_disposable_virtual_card": 75,
+            "get_physical_card": 78,
+            "getting_spare_card": 72,
+            "getting_virtual_card": 63,
+            "lost_or_stolen_card": 82,
+            "lost_or_stolen_phone": 101,
+            "order_physical_card": 42,
+            "passcode_forgotten": 139,
+            "pending_card_payment": 159,
+            "pending_cash_withdrawal": 130,
+            "pending_top_up": 124,
+            "pending_transfer": 77,
+            "pin_blocked": 89,
+            "receiving_money": 87,
+            "request_refund": 170,
+            "reverted_card_payment?": 83,
+            "supported_cards_and_currencies": 55,
+            "terminate_account": 97,
+            "top_up_by_bank_transfer_charge": 45,
+            "top_up_by_card_charge": 92,
+            "top_up_by_cash_or_cheque": 98,
+            "top_up_failed": 166,
+            "top_up_limits": 99,
+            "top_up_reverted": 87,
+            "topping_up_by_card": 65,
+            "transaction_charged_twice": 149,
+            "transfer_fee_charged": 156,
+            "transfer_into_account": 107,
+            "transfer_not_received_by_recipient": 167,
+            "transfer_timing": 296,
+            "unable_to_verify_identity": 124,
+            "verify_my_identity": 114,
+            "verify_source_of_funds": 65,
+            "verify_top_up": 97,
+            "virtual_card_not_working": 34,
+            "visa_or_mastercard": 110,
+            "why_verify_identity": 69,
+            "wrong_amount_of_cash_received": 160,
+            "wrong_exchange_rate_for_cash_withdrawal": 101
+          },
+          "valid": {
+            "Refund_not_showing_up": 16,
+            "activate_my_card": 21,
+            "age_limit": 13,
+            "apple_pay_or_google_pay": 12,
+            "atm_support": 10,
+            "automatic_top_up": 12,
+            "balance_not_updated_after_bank_transfer": 6,
+            "balance_not_updated_after_cheque_or_cash_deposit": 18,
+            "beneficiary_not_allowed": 9,
+            "cancel_transfer": 21,
+            "card_about_to_expire": 10,
+            "card_acceptance": 6,
+            "card_arrival": 3,
+            "card_delivery_estimate": 31,
+            "card_linking": 4,
+            "card_not_working": 15,
+            "card_payment_fee_charged": 22,
+            "card_payment_not_recognised": 15,
+            "card_payment_wrong_exchange_rate": 12,
+            "card_swallowed": 7,
+            "cash_withdrawal_charge": 22,
+            "cash_withdrawal_not_recognised": 8,
+            "change_pin": 16,
+            "compromised_card": 19,
+            "contactless_not_working": 3,
+            "country_support": 22,
+            "declined_card_payment": 27,
+            "declined_cash_withdrawal": 16,
+            "declined_transfer": 12,
+            "direct_debit_payment_not_recognised": 11,
+            "disposable_card_limits": 14,
+            "edit_personal_details": 14,
+            "exchange_charge": 9,
+            "exchange_rate": 31,
+            "exchange_via_app": 8,
+            "extra_charge_on_statement": 19,
+            "failed_transfer": 20,
+            "fiat_currency_support": 14,
+            "get_disposable_virtual_card": 10,
+            "get_physical_card": 7,
+            "getting_spare_card": 7,
+            "getting_virtual_card": 7,
+            "lost_or_stolen_card": 13,
+            "lost_or_stolen_phone": 11,
+            "order_physical_card": 3,
+            "passcode_forgotten": 17,
+            "pending_card_payment": 17,
+            "pending_cash_withdrawal": 18,
+            "pending_top_up": 17,
+            "pending_transfer": 9,
+            "pin_blocked": 12,
+            "receiving_money": 10,
+            "request_refund": 16,
+            "reverted_card_payment?": 5,
+            "supported_cards_and_currencies": 8,
+            "terminate_account": 11,
+            "top_up_by_bank_transfer_charge": 12,
+            "top_up_by_card_charge": 11,
+            "top_up_by_cash_or_cheque": 11,
+            "top_up_failed": 23,
+            "top_up_limits": 13,
+            "top_up_reverted": 7,
+            "topping_up_by_card": 11,
+            "transaction_charged_twice": 18,
+            "transfer_fee_charged": 16,
+            "transfer_into_account": 10,
+            "transfer_not_received_by_recipient": 27,
+            "transfer_timing": 29,
+            "unable_to_verify_identity": 11,
+            "verify_my_identity": 10,
+            "verify_source_of_funds": 8,
+            "verify_top_up": 12,
+            "virtual_card_not_working": 5,
+            "visa_or_mastercard": 12,
+            "why_verify_identity": 12,
+            "wrong_amount_of_cash_received": 17,
+            "wrong_exchange_rate_for_cash_withdrawal": 9
+          },
+          "test": {
+            "Refund_not_showing_up": 43,
+            "activate_my_card": 43,
+            "age_limit": 42,
+            "apple_pay_or_google_pay": 36,
+            "atm_support": 40,
+            "automatic_top_up": 40,
+            "balance_not_updated_after_bank_transfer": 14,
+            "balance_not_updated_after_cheque_or_cash_deposit": 36,
+            "beneficiary_not_allowed": 11,
+            "cancel_transfer": 39,
+            "card_about_to_expire": 33,
+            "card_acceptance": 45,
+            "card_arrival": 15,
+            "card_delivery_estimate": 83,
+            "card_linking": 35,
+            "card_not_working": 47,
+            "card_payment_fee_charged": 52,
+            "card_payment_not_recognised": 19,
+            "card_payment_wrong_exchange_rate": 30,
+            "card_swallowed": 41,
+            "cash_withdrawal_charge": 44,
+            "cash_withdrawal_not_recognised": 24,
+            "change_pin": 67,
+            "compromised_card": 70,
+            "contactless_not_working": 37,
+            "country_support": 63,
+            "declined_card_payment": 72,
+            "declined_cash_withdrawal": 44,
+            "declined_transfer": 33,
+            "direct_debit_payment_not_recognised": 20,
+            "disposable_card_limits": 40,
+            "edit_personal_details": 41,
+            "exchange_charge": 32,
+            "exchange_rate": 98,
+            "exchange_via_app": 15,
+            "extra_charge_on_statement": 53,
+            "failed_transfer": 55,
+            "fiat_currency_support": 50,
+            "get_disposable_virtual_card": 41,
+            "get_physical_card": 25,
+            "getting_spare_card": 21,
+            "getting_virtual_card": 35,
+            "lost_or_stolen_card": 44,
+            "lost_or_stolen_phone": 39,
+            "order_physical_card": 8,
+            "passcode_forgotten": 59,
+            "pending_card_payment": 39,
+            "pending_cash_withdrawal": 44,
+            "pending_top_up": 40,
+            "pending_transfer": 26,
+            "pin_blocked": 31,
+            "receiving_money": 32,
+            "request_refund": 47,
+            "reverted_card_payment?": 19,
+            "supported_cards_and_currencies": 23,
+            "terminate_account": 41,
+            "top_up_by_bank_transfer_charge": 17,
+            "top_up_by_card_charge": 32,
+            "top_up_by_cash_or_cheque": 40,
+            "top_up_failed": 53,
+            "top_up_limits": 46,
+            "top_up_reverted": 32,
+            "topping_up_by_card": 19,
+            "transaction_charged_twice": 42,
+            "transfer_fee_charged": 47,
+            "transfer_into_account": 45,
+            "transfer_not_received_by_recipient": 47,
+            "transfer_timing": 94,
+            "unable_to_verify_identity": 51,
+            "verify_my_identity": 48,
+            "verify_source_of_funds": 34,
+            "verify_top_up": 40,
+            "virtual_card_not_working": 32,
+            "visa_or_mastercard": 36,
+            "why_verify_identity": 26,
+            "wrong_amount_of_cash_received": 41,
+            "wrong_exchange_rate_for_cash_withdrawal": 29
+          }
+        },
+        "gold": {
+          "train": {
+            "Refund_not_showing_up": 145,
+            "activate_my_card": 143,
+            "age_limit": 99,
+            "apple_pay_or_google_pay": 109,
+            "atm_support": 76,
+            "automatic_top_up": 113,
+            "balance_not_updated_after_bank_transfer": 153,
+            "balance_not_updated_after_cheque_or_cash_deposit": 162,
+            "beneficiary_not_allowed": 140,
+            "cancel_transfer": 140,
+            "card_about_to_expire": 116,
+            "card_acceptance": 51,
+            "card_arrival": 134,
+            "card_delivery_estimate": 100,
+            "card_linking": 123,
+            "card_not_working": 98,
+            "card_payment_fee_charged": 168,
+            "card_payment_not_recognised": 151,
+            "card_payment_wrong_exchange_rate": 150,
+            "card_swallowed": 54,
+            "cash_withdrawal_charge": 159,
+            "cash_withdrawal_not_recognised": 144,
+            "change_pin": 107,
+            "compromised_card": 76,
+            "contactless_not_working": 31,
+            "country_support": 114,
+            "declined_card_payment": 136,
+            "declined_cash_withdrawal": 154,
+            "declined_transfer": 117,
+            "direct_debit_payment_not_recognised": 163,
+            "disposable_card_limits": 107,
+            "edit_personal_details": 107,
+            "exchange_charge": 108,
+            "exchange_rate": 100,
+            "exchange_via_app": 106,
+            "extra_charge_on_statement": 147,
+            "failed_transfer": 122,
+            "fiat_currency_support": 113,
+            "get_disposable_virtual_card": 85,
+            "get_physical_card": 95,
+            "getting_spare_card": 116,
+            "getting_virtual_card": 68,
+            "lost_or_stolen_card": 73,
+            "lost_or_stolen_phone": 108,
+            "order_physical_card": 108,
+            "passcode_forgotten": 93,
+            "pending_card_payment": 143,
+            "pending_cash_withdrawal": 128,
+            "pending_top_up": 128,
+            "pending_transfer": 132,
+            "pin_blocked": 101,
+            "receiving_money": 85,
+            "request_refund": 150,
+            "reverted_card_payment?": 143,
+            "supported_cards_and_currencies": 116,
+            "terminate_account": 97,
+            "top_up_by_bank_transfer_charge": 99,
+            "top_up_by_card_charge": 102,
+            "top_up_by_cash_or_cheque": 101,
+            "top_up_failed": 123,
+            "top_up_limits": 80,
+            "top_up_reverted": 127,
+            "topping_up_by_card": 92,
+            "transaction_charged_twice": 157,
+            "transfer_fee_charged": 152,
+            "transfer_into_account": 101,
+            "transfer_not_received_by_recipient": 152,
+            "transfer_timing": 115,
+            "unable_to_verify_identity": 91,
+            "verify_my_identity": 93,
+            "verify_source_of_funds": 101,
+            "verify_top_up": 110,
+            "virtual_card_not_working": 36,
+            "visa_or_mastercard": 121,
+            "why_verify_identity": 108,
+            "wrong_amount_of_cash_received": 162,
+            "wrong_exchange_rate_for_cash_withdrawal": 146
+          },
+          "valid": {
+            "Refund_not_showing_up": 17,
+            "activate_my_card": 16,
+            "age_limit": 11,
+            "apple_pay_or_google_pay": 13,
+            "atm_support": 9,
+            "automatic_top_up": 12,
+            "balance_not_updated_after_bank_transfer": 18,
+            "balance_not_updated_after_cheque_or_cash_deposit": 19,
+            "beneficiary_not_allowed": 16,
+            "cancel_transfer": 16,
+            "card_about_to_expire": 13,
+            "card_acceptance": 6,
+            "card_arrival": 16,
+            "card_delivery_estimate": 12,
+            "card_linking": 13,
+            "card_not_working": 11,
+            "card_payment_fee_charged": 19,
+            "card_payment_not_recognised": 17,
+            "card_payment_wrong_exchange_rate": 17,
+            "card_swallowed": 7,
+            "cash_withdrawal_charge": 18,
+            "cash_withdrawal_not_recognised": 16,
+            "change_pin": 13,
+            "compromised_card": 9,
+            "contactless_not_working": 4,
+            "country_support": 13,
+            "declined_card_payment": 16,
+            "declined_cash_withdrawal": 17,
+            "declined_transfer": 14,
+            "direct_debit_payment_not_recognised": 19,
+            "disposable_card_limits": 13,
+            "edit_personal_details": 13,
+            "exchange_charge": 13,
+            "exchange_rate": 12,
+            "exchange_via_app": 12,
+            "extra_charge_on_statement": 17,
+            "failed_transfer": 14,
+            "fiat_currency_support": 13,
+            "get_disposable_virtual_card": 10,
+            "get_physical_card": 11,
+            "getting_spare_card": 13,
+            "getting_virtual_card": 8,
+            "lost_or_stolen_card": 9,
+            "lost_or_stolen_phone": 13,
+            "order_physical_card": 12,
+            "passcode_forgotten": 11,
+            "pending_card_payment": 16,
+            "pending_cash_withdrawal": 15,
+            "pending_top_up": 15,
+            "pending_transfer": 15,
+            "pin_blocked": 12,
+            "receiving_money": 10,
+            "request_refund": 17,
+            "reverted_card_payment?": 17,
+            "supported_cards_and_currencies": 13,
+            "terminate_account": 11,
+            "top_up_by_bank_transfer_charge": 12,
+            "top_up_by_card_charge": 12,
+            "top_up_by_cash_or_cheque": 12,
+            "top_up_failed": 15,
+            "top_up_limits": 10,
+            "top_up_reverted": 15,
+            "topping_up_by_card": 11,
+            "transaction_charged_twice": 18,
+            "transfer_fee_charged": 18,
+            "transfer_into_account": 11,
+            "transfer_not_received_by_recipient": 18,
+            "transfer_timing": 13,
+            "unable_to_verify_identity": 11,
+            "verify_my_identity": 11,
+            "verify_source_of_funds": 12,
+            "verify_top_up": 12,
+            "virtual_card_not_working": 5,
+            "visa_or_mastercard": 14,
+            "why_verify_identity": 13,
+            "wrong_amount_of_cash_received": 18,
+            "wrong_exchange_rate_for_cash_withdrawal": 17
+          },
+          "test": {
+            "Refund_not_showing_up": 40,
+            "activate_my_card": 40,
+            "age_limit": 40,
+            "apple_pay_or_google_pay": 40,
+            "atm_support": 39,
+            "automatic_top_up": 40,
+            "balance_not_updated_after_bank_transfer": 40,
+            "balance_not_updated_after_cheque_or_cash_deposit": 40,
+            "beneficiary_not_allowed": 40,
+            "cancel_transfer": 40,
+            "card_about_to_expire": 40,
+            "card_acceptance": 40,
+            "card_arrival": 40,
+            "card_delivery_estimate": 40,
+            "card_linking": 40,
+            "card_not_working": 40,
+            "card_payment_fee_charged": 40,
+            "card_payment_not_recognised": 40,
+            "card_payment_wrong_exchange_rate": 40,
+            "card_swallowed": 40,
+            "cash_withdrawal_charge": 40,
+            "cash_withdrawal_not_recognised": 40,
+            "change_pin": 40,
+            "compromised_card": 40,
+            "contactless_not_working": 40,
+            "country_support": 39,
+            "declined_card_payment": 40,
+            "declined_cash_withdrawal": 40,
+            "declined_transfer": 40,
+            "direct_debit_payment_not_recognised": 40,
+            "disposable_card_limits": 40,
+            "edit_personal_details": 40,
+            "exchange_charge": 40,
+            "exchange_rate": 40,
+            "exchange_via_app": 40,
+            "extra_charge_on_statement": 40,
+            "failed_transfer": 40,
+            "fiat_currency_support": 40,
+            "get_disposable_virtual_card": 40,
+            "get_physical_card": 40,
+            "getting_spare_card": 40,
+            "getting_virtual_card": 40,
+            "lost_or_stolen_card": 40,
+            "lost_or_stolen_phone": 40,
+            "order_physical_card": 40,
+            "passcode_forgotten": 40,
+            "pending_card_payment": 40,
+            "pending_cash_withdrawal": 40,
+            "pending_top_up": 39,
+            "pending_transfer": 40,
+            "pin_blocked": 40,
+            "receiving_money": 40,
+            "request_refund": 40,
+            "reverted_card_payment?": 40,
+            "supported_cards_and_currencies": 40,
+            "terminate_account": 40,
+            "top_up_by_bank_transfer_charge": 40,
+            "top_up_by_card_charge": 39,
+            "top_up_by_cash_or_cheque": 40,
+            "top_up_failed": 40,
+            "top_up_limits": 39,
+            "top_up_reverted": 40,
+            "topping_up_by_card": 40,
+            "transaction_charged_twice": 40,
+            "transfer_fee_charged": 40,
+            "transfer_into_account": 40,
+            "transfer_not_received_by_recipient": 40,
+            "transfer_timing": 40,
+            "unable_to_verify_identity": 40,
+            "verify_my_identity": 40,
+            "verify_source_of_funds": 40,
+            "verify_top_up": 40,
+            "virtual_card_not_working": 40,
+            "visa_or_mastercard": 40,
+            "why_verify_identity": 40,
+            "wrong_amount_of_cash_received": 40,
+            "wrong_exchange_rate_for_cash_withdrawal": 40
+          }
+        }
+      },
+      "pii": {
+        "enabled": true,
+        "kinds": [
+          "email",
+          "iban",
+          "card",
+          "ssn",
+          "phone",
+          "ipv4"
+        ],
+        "hits": {
+          "email": 0,
+          "iban": 0,
+          "card": 0,
+          "ssn": 0,
+          "phone": 0,
+          "ipv4": 0
+        },
+        "by_field": {
+          "input": {
+            "email": 0,
+            "iban": 0,
+            "card": 0,
+            "ssn": 0,
+            "phone": 0,
+            "ipv4": 0
+          },
+          "teacher": {
+            "email": 0,
+            "iban": 0,
+            "card": 0,
+            "ssn": 0,
+            "phone": 0,
+            "ipv4": 0
+          },
+          "gold": {
+            "email": 0,
+            "iban": 0,
+            "card": 0,
+            "ssn": 0,
+            "phone": 0,
+            "ipv4": 0
+          }
+        },
+        "total": 0,
+        "examples_changed": 0,
+        "pii_schema_invalid": 0,
+        "pii_schema_invalid_gold": 0,
+        "pii_schema_invalid_fields": {}
+      },
+      "dedupe": {
+        "threshold": 0.9,
+        "exact": true,
+        "repeated_inputs": 5,
+        "removed_exact": 0,
+        "removed_near": 31,
+        "conflict_clusters": 0,
+        "conflict_examples": 0,
+        "gold_conflicts": 2,
+        "splits": {
+          "train": {
+            "before": 8926,
+            "after": 8900,
+            "repeated_inputs": 3,
+            "clusters": 26,
+            "removed_exact": 0,
+            "removed_near": 26,
+            "conflict_clusters": 0,
+            "conflict_examples": 0,
+            "gold_conflicts": 1
+          },
+          "valid": {
+            "before": 1037,
+            "after": 1036,
+            "repeated_inputs": 1,
+            "clusters": 1,
+            "removed_exact": 0,
+            "removed_near": 1,
+            "conflict_clusters": 0,
+            "conflict_examples": 0,
+            "gold_conflicts": 0
+          },
+          "test": {
+            "before": 3079,
+            "after": 3075,
+            "repeated_inputs": 1,
+            "clusters": 4,
+            "removed_exact": 0,
+            "removed_near": 4,
+            "conflict_clusters": 0,
+            "conflict_examples": 0,
+            "gold_conflicts": 1
+          }
+        }
+      },
+      "cross_split": {
+        "threshold": 0.9,
+        "removed": {
+          "train": 26,
+          "valid": 2,
+          "test": 0
+        },
+        "pairs": {
+          "train/valid": {
+            "exact": 0,
+            "near": 6
+          },
+          "train/test": {
+            "exact": 0,
+            "near": 20
+          },
+          "valid/test": {
+            "exact": 0,
+            "near": 2
+          }
+        }
+      },
+      "labelling": {
+        "requested": 4102,
+        "mode": "replay",
+        "max_usd": null,
+        "projection": {
+          "sample_n": 50,
+          "live_n": 0,
+          "n_total": 4102,
+          "mean_usd": null,
+          "projected_usd": 0.0
+        },
+        "live": 0,
+        "cached": 0,
+        "replayed": 4102,
+        "cost_usd": 0,
+        "recorded_cost_usd": 0.0245691656,
+        "providers": {
+          "DeepInfra": 4102
+        },
+        "truncated": 0,
+        "invalid": 12,
+        "invalid_by_split": {
+          "train": 0,
+          "valid": 4,
+          "test": 8
+        },
+        "kept_invalid_test": 8,
+        "labelled": 4090,
+        "date": "2026-09-26",
+        "latency": {
+          "n": 4102,
+          "p50_ms": 612.3983745055739,
+          "p95_ms": 1342.385354486759,
+          "mean_ms": 712.1736923654148
+        },
+        "concurrency": null,
+        "pii_hits": {},
+        "pii_schema_invalid": 0
+      },
+      "length": {
+        "max_seq_len": 512,
+        "tokenizer": "mlx-community/Qwen2.5-0.5B-Instruct-4bit",
+        "dropped": 0,
+        "splits": {
+          "train": {
+            "n": 8874,
+            "kept": 8874,
+            "dropped": 0,
+            "p50": 43.0,
+            "p95": 65.4,
+            "max": 122,
+            "max_kept": 122
+          },
+          "valid": {
+            "n": 1030,
+            "kept": 1030,
+            "dropped": 0,
+            "p50": 43.0,
+            "p95": 67.0,
+            "max": 129,
+            "max_kept": 129
+          },
+          "test": {
+            "n": 3075,
+            "kept": 3075,
+            "dropped": 0,
+            "p50": 42.0,
+            "p95": 62.0,
+            "max": 112,
+            "max_kept": 112
+          }
+        }
+      },
+      "leakage": {
+        "ok": true,
+        "threshold": 0.9,
+        "sizes": {
+          "train": 8874,
+          "valid": 1030,
+          "test": 3075
+        },
+        "exact": 0,
+        "near": 0,
+        "by_split_pair": {
+          "train/valid": 0,
+          "train/test": 0,
+          "valid/test": 0
+        },
+        "method": {
+          "num_perm": 256,
+          "seed": 7919,
+          "bands": 32,
+          "rows": 8,
+          "hash": "blake2b-32"
+        },
+        "pairs": []
+      },
+      "captured_from": "2026-09-26",
+      "captured_to": "2026-09-26",
+      "teacher": {
+        "model": "deepseek/deepseek-v4.1-flash",
+        "provider": "deepinfra/fp8",
+        "prompt_sha256": "0d8430f72f5be434d4d343651d41f46bd7a18fcc318b4c53db6b84417a4c8fca",
+        "temperature": 0.0,
+        "max_tokens": 24,
+        "mode": "replay"
+      },
+      "student": {
+        "base_model": "mlx-community/Qwen2.5-0.5B-Instruct-4bit",
+        "system_prompt": "Classify the customer's banking message into exactly one intent label.",
+        "max_seq_len": 512
+      },
+      "source": {
+        "name": "Banking77 (demo)",
+        "source": "https://github.com/PolyAI-LDN/task-specific-datasets/tree/57ec275d8078af65b7731c2a98be812d844a6d6b/banking_data",
+        "licence": "CC BY 4.0",
+        "split_rule": "official test set -> test; official train set -> 90/10 train/valid, stratified by gold label with seed 13"
+      },
+      "stages": {
+        "load": {
+          "captures": {
+            "total": 8965,
+            "usable": 8965,
+            "by_source": {
+              "proxy": 8965
+            },
+            "skipped": {},
+            "by_model": {
+              "deepseek/deepseek-v4.1-flash": 8965
+            },
+            "by_upstream_model": {
+              "deepseek/deepseek-v4.1-flash": 8965
+            },
+            "by_system_prompt": {
+              "0d8430f72f5be434d4d343651d41f46bd7a18fcc318b4c53db6b84417a4c8fca": 8965
+            },
+            "other_model": 0,
+            "other_prompt": 0,
+            "recorded_cost_usd": 0.0549455592,
+            "first_ts": 1790462947.215173,
+            "last_ts": 1790462964.9536781
+          },
+          "imports": {
+            "total": 13083,
+            "by_format": {
+              "inputs": 13083
+            }
+          }
+        },
+        "extract": {
+          "records": 22048,
+          "from_captures": 8965,
+          "from_imports": 13083,
+          "request_invalid": 0,
+          "input_unparsed": 0,
+          "missing_output": 0,
+          "empty_input": 0
+        },
+        "merge": {
+          "records": 22048,
+          "examples": 13071,
+          "merged_records": 8977,
+          "with_teacher_output": 8962,
+          "with_gold": 13071,
+          "with_both": 8962,
+          "cross_split_merged": 7,
+          "repeated_inputs": 5,
+          "meta_conflicts": {}
+        },
+        "normalise": {
+          "examples": 13071,
+          "outputs": 8965,
+          "invalid_outputs": 29,
+          "dropped_all_invalid": 29,
+          "dropped_no_majority": 0,
+          "kept_test_all_invalid": 0,
+          "kept_test_no_majority": 0,
+          "conflicts_resolved": 0,
+          "unlabelled": 4109,
+          "gold_invalid": 0,
+          "gold_conflicts_resolved": 0,
+          "gold_conflicts_unresolved": 0,
+          "kept": 13042,
+          "labelled": 8933,
+          "with_gold": 13042
+        },
+        "pii": {
+          "enabled": true,
+          "kinds": [
+            "email",
+            "iban",
+            "card",
+            "ssn",
+            "phone",
+            "ipv4"
+          ],
+          "hits": {
+            "email": 0,
+            "iban": 0,
+            "card": 0,
+            "ssn": 0,
+            "phone": 0,
+            "ipv4": 0
+          },
+          "by_field": {
+            "input": {
+              "email": 0,
+              "iban": 0,
+              "card": 0,
+              "ssn": 0,
+              "phone": 0,
+              "ipv4": 0
+            },
+            "teacher": {
+              "email": 0,
+              "iban": 0,
+              "card": 0,
+              "ssn": 0,
+              "phone": 0,
+              "ipv4": 0
+            },
+            "gold": {
+              "email": 0,
+              "iban": 0,
+              "card": 0,
+              "ssn": 0,
+              "phone": 0,
+              "ipv4": 0
+            }
+          },
+          "total": 0,
+          "examples_changed": 0,
+          "pii_schema_invalid": 0,
+          "pii_schema_invalid_gold": 0,
+          "pii_schema_invalid_fields": {}
+        },
+        "split": {
+          "method": "predefined",
+          "predefined_field": "meta.split",
+          "group_by": null,
+          "seed": 13,
+          "fractions": {
+            "val": 0.1,
+            "test": 0.1
+          },
+          "targets": {
+            "valid": 0,
+            "test": 0
+          },
+          "predefined": {
+            "train": 8926,
+            "valid": 1037,
+            "test": 3079
+          },
+          "random": {
+            "train": 0,
+            "valid": 0,
+            "test": 0
+          },
+          "groups": null,
+          "splits": {
+            "train": 8926,
+            "valid": 1037,
+            "test": 3079
+          }
+        },
+        "dedupe": {
+          "threshold": 0.9,
+          "exact": true,
+          "repeated_inputs": 5,
+          "removed_exact": 0,
+          "removed_near": 31,
+          "conflict_clusters": 0,
+          "conflict_examples": 0,
+          "gold_conflicts": 2,
+          "splits": {
+            "train": {
+              "before": 8926,
+              "after": 8900,
+              "repeated_inputs": 3,
+              "clusters": 26,
+              "removed_exact": 0,
+              "removed_near": 26,
+              "conflict_clusters": 0,
+              "conflict_examples": 0,
+              "gold_conflicts": 1
+            },
+            "valid": {
+              "before": 1037,
+              "after": 1036,
+              "repeated_inputs": 1,
+              "clusters": 1,
+              "removed_exact": 0,
+              "removed_near": 1,
+              "conflict_clusters": 0,
+              "conflict_examples": 0,
+              "gold_conflicts": 0
+            },
+            "test": {
+              "before": 3079,
+              "after": 3075,
+              "repeated_inputs": 1,
+              "clusters": 4,
+              "removed_exact": 0,
+              "removed_near": 4,
+              "conflict_clusters": 0,
+              "conflict_examples": 0,
+              "gold_conflicts": 1
+            }
+          }
+        },
+        "cross_split": {
+          "threshold": 0.9,
+          "removed": {
+            "train": 26,
+            "valid": 2,
+            "test": 0
+          },
+          "pairs": {
+            "train/valid": {
+              "exact": 0,
+              "near": 6
+            },
+            "train/test": {
+              "exact": 0,
+              "near": 20
+            },
+            "valid/test": {
+              "exact": 0,
+              "near": 2
+            }
+          }
+        },
+        "label": {
+          "requested": 4102,
+          "mode": "replay",
+          "max_usd": null,
+          "projection": {
+            "sample_n": 50,
+            "live_n": 0,
+            "n_total": 4102,
+            "mean_usd": null,
+            "projected_usd": 0.0
+          },
+          "live": 0,
+          "cached": 0,
+          "replayed": 4102,
+          "cost_usd": 0,
+          "recorded_cost_usd": 0.0245691656,
+          "providers": {
+            "DeepInfra": 4102
+          },
+          "truncated": 0,
+          "invalid": 12,
+          "invalid_by_split": {
+            "train": 0,
+            "valid": 4,
+            "test": 8
+          },
+          "kept_invalid_test": 8,
+          "labelled": 4090,
+          "date": "2026-09-26",
+          "latency": {
+            "n": 4102,
+            "p50_ms": 612.3983745055739,
+            "p95_ms": 1342.385354486759,
+            "mean_ms": 712.1736923654148
+          },
+          "concurrency": null,
+          "pii_hits": {},
+          "pii_schema_invalid": 0
+        },
+        "length": {
+          "max_seq_len": 512,
+          "tokenizer": "mlx-community/Qwen2.5-0.5B-Instruct-4bit",
+          "dropped": 0,
+          "splits": {
+            "train": {
+              "n": 8874,
+              "kept": 8874,
+              "dropped": 0,
+              "p50": 43.0,
+              "p95": 65.4,
+              "max": 122,
+              "max_kept": 122
+            },
+            "valid": {
+              "n": 1030,
+              "kept": 1030,
+              "dropped": 0,
+              "p50": 43.0,
+              "p95": 67.0,
+              "max": 129,
+              "max_kept": 129
+            },
+            "test": {
+              "n": 3075,
+              "kept": 3075,
+              "dropped": 0,
+              "p50": 42.0,
+              "p95": 62.0,
+              "max": 112,
+              "max_kept": 112
+            }
+          }
+        },
+        "leakage": {
+          "ok": true,
+          "exact": 0,
+          "near": 0,
+          "sizes": {
+            "train": 8874,
+            "valid": 1030,
+            "test": 3075
+          }
+        }
+      },
+      "files": {
+        "train.jsonl": "42820af6f7d9662312a7cbe20d70eb062b29aa33d5c2c52af4c1465a5b0b922a",
+        "train.meta.jsonl": "4f3cf2cf42d3607339678da641778f78b76024ca3a6a2fb63a52851c76a7b4d6",
+        "valid.jsonl": "c7e0ccb6defdad5ecaedc57585d9cf19dfb66e31268661f154b2fbadb97debda",
+        "valid.meta.jsonl": "d24f7fb25ab45468bdd9c31793bd0155616964104614c0aa4fad9a4914fda11f",
+        "test.jsonl": "65f671279e09db114d1a9419b2fe772571d4c4c67026e02bbed774d2a529efe2",
+        "test.meta.jsonl": "ddcf7363629552b73fc1fbd6f74693fb7cfb4dc99779f3e79a54fdaf9096d2d2",
+        "labelling_keys.txt": "43f02d8f0bf4b7b28bdae8d71d72d706e9c3380ba4f08f58462a20675b010ba1"
+      },
+      "elapsed_s": 4.836
+    }
+  },
+  "spend": {
+    "task_total": 0.000499919,
+    "task_by_phase": {
+      "serve": 0.000499919
+    },
+    "workspace_total": 0.000499919,
+    "global_cap": 1.0,
+    "open_reservations": 0,
+    "ledger": true
+  },
+  "notes": [
+    "reported for run qwen2.5-0.5b-full-s13 (--run); selected_run.json names qwen2.5-1.5b-full-s13"
+  ]
+}

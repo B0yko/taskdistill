@@ -1,0 +1,204 @@
+{
+  "date": "2026-09-27",
+  "command": "uvx --from git+file://<clone> taskdistill demo <demo> in a fresh directory (see runs[].command)",
+  "notes": [
+    "Replay mode (no API key); quick profile; the MacBook Air runs used the machine's warm uv and Hugging Face caches.",
+    "The cold run used an empty uv cache and an empty Hugging Face cache, so it downloaded the packages and the 0.29 GB base model."
+  ],
+  "runs": [
+    {
+      "demo": "banking77",
+      "profile": "quick",
+      "cache": "warm",
+      "install_s": 12.9,
+      "demo_s": 146.8,
+      "total_s": 159.7,
+      "exit_code": 0,
+      "stages_s": {
+        "data": 11.25,
+        "capture": 3.5,
+        "curate": 3.61,
+        "train": 88.2,
+        "eval": 37.2,
+        "serve": 1.17,
+        "report": 0.28
+      },
+      "hardware": {
+        "model": "Mac17,4",
+        "cpu": "Apple M5",
+        "memory_gb": 24.0,
+        "os": "macOS 26.6.2"
+      },
+      "state_before": {
+        "timestamp": "2026-09-27T01:50:36+00:00",
+        "load_average": [
+          1.9,
+          1.98,
+          2.02
+        ],
+        "memory": {
+          "free_percent": 82,
+          "pressure_free_percent": 82,
+          "swap_used_gb": 8.8
+        }
+      },
+      "command": "uvx --from git+file://<clone> taskdistill demo banking77"
+    },
+    {
+      "demo": "invoices",
+      "profile": "quick",
+      "cache": "warm",
+      "install_s": 0.2,
+      "demo_s": 128.4,
+      "total_s": 128.6,
+      "exit_code": 0,
+      "stages_s": {
+        "data": 0.27,
+        "capture": 0.7,
+        "curate": 0.89,
+        "train": 82.28,
+        "eval": 34.35,
+        "serve": 9.32,
+        "report": 0.07
+      },
+      "hardware": {
+        "model": "Mac17,4",
+        "cpu": "Apple M5",
+        "memory_gb": 24.0,
+        "os": "macOS 26.6.2"
+      },
+      "state_before": {
+        "timestamp": "2026-09-27T01:53:15+00:00",
+        "load_average": [
+          2.62,
+          2.48,
+          2.23
+        ],
+        "memory": {
+          "free_percent": 84,
+          "pressure_free_percent": 84,
+          "swap_used_gb": 8.63
+        }
+      },
+      "command": "uvx --from git+file://<clone> taskdistill demo invoices"
+    },
+    {
+      "demo": "banking77",
+      "profile": "quick",
+      "cache": "warm",
+      "install_s": 3.1,
+      "demo_s": 86.6,
+      "total_s": 89.6,
+      "exit_code": 0,
+      "stages_s": {
+        "data": 11.59,
+        "capture": 4.66,
+        "curate": 3.94,
+        "train": 34.93,
+        "eval": 28.12,
+        "serve": 1.0,
+        "report": 0.34
+      },
+      "hardware": {
+        "model": "Mac16,9",
+        "cpu": "Apple M4 Max",
+        "memory_gb": 128.0,
+        "os": "macOS 26.5.2"
+      },
+      "state_before": {
+        "timestamp": "2026-09-27T02:46:55+00:00",
+        "load_average": [
+          7.43,
+          7.8,
+          8.05
+        ],
+        "memory": {
+          "free_percent": 97,
+          "pressure_free_percent": 97,
+          "swap_used_gb": 37.2
+        },
+        "gpu_utilization_percent": 0
+      },
+      "command": "uvx --from git+file://<clone> taskdistill demo banking77"
+    },
+    {
+      "demo": "invoices",
+      "profile": "quick",
+      "cache": "warm",
+      "install_s": 0.2,
+      "demo_s": 63.2,
+      "total_s": 63.4,
+      "exit_code": 0,
+      "stages_s": {
+        "data": 0.36,
+        "capture": 0.73,
+        "curate": 0.95,
+        "train": 34.06,
+        "eval": 20.58,
+        "serve": 5.82,
+        "report": 0.08
+      },
+      "hardware": {
+        "model": "Mac16,9",
+        "cpu": "Apple M4 Max",
+        "memory_gb": 128.0,
+        "os": "macOS 26.5.2"
+      },
+      "state_before": {
+        "timestamp": "2026-09-27T02:48:25+00:00",
+        "load_average": [
+          12.43,
+          10.15,
+          8.98
+        ],
+        "memory": {
+          "free_percent": 97,
+          "pressure_free_percent": 97,
+          "swap_used_gb": 37.18
+        },
+        "gpu_utilization_percent": 0
+      },
+      "command": "uvx --from git+file://<clone> taskdistill demo invoices"
+    },
+    {
+      "demo": "banking77",
+      "profile": "quick",
+      "cache": "cold",
+      "install_s": 7.1,
+      "demo_s": 96.4,
+      "total_s": 103.5,
+      "exit_code": 0,
+      "stages_s": {
+        "data": 10.78,
+        "capture": 4.77,
+        "curate": 5.36,
+        "train": 44.21,
+        "eval": 28.14,
+        "serve": 1.01,
+        "report": 0.34
+      },
+      "model_download_bytes": 289775616,
+      "hardware": {
+        "model": "Mac16,9",
+        "cpu": "Apple M4 Max",
+        "memory_gb": 128.0,
+        "os": "macOS 26.5.2"
+      },
+      "state_before": {
+        "timestamp": "2026-09-27T02:49:29+00:00",
+        "load_average": [
+          9.31,
+          9.69,
+          8.89
+        ],
+        "memory": {
+          "free_percent": 97,
+          "pressure_free_percent": 97,
+          "swap_used_gb": 37.17
+        },
+        "gpu_utilization_percent": 71
+      },
+      "command": "uvx --from git+file://<clone> taskdistill demo banking77 (empty uv cache, empty HF_HOME)"
+    }
+  ]
+}
