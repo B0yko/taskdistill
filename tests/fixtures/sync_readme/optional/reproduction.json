@@ -1,0 +1,89 @@
+{
+  "tolerance_pts": 2.0,
+  "reference": {
+    "date": "2026-09-27T00:49:45+00:00",
+    "hardware": {
+      "model": "Mac17,4",
+      "cpu": "Apple M5",
+      "memory_gb": 24.0,
+      "os": "macOS 26.6.2"
+    }
+  },
+  "rerun": {
+    "date": "2026-09-28T09:15:00+00:00",
+    "hardware": {
+      "model": "Mac16,9",
+      "cpu": "Apple M4 Max",
+      "memory_gb": 64.0,
+      "os": "macOS 26.6.2"
+    }
+  },
+  "tasks": {
+    "banking77": {
+      "rows": [
+        {"row": "teacher (deepseek/deepseek-v4.1-flash)", "metric": "accuracy", "reference": 0.7580487804878049, "rerun": 0.760162601626016, "diff_pts": 0.2138211382, "within": true},
+        {"row": "teacher (deepseek/deepseek-v4.1-flash)", "metric": "macro_f1", "reference": 0.7325, "rerun": 0.7318, "diff_pts": -0.07, "within": true},
+        {"row": "zero-shot qwen2.5-0.5b", "metric": "accuracy", "reference": 0.2302439024390244, "rerun": 0.2350406504065041, "diff_pts": 0.4797, "within": true},
+        {"row": "student qwen2.5-0.5b (teacher labels, 3 seeds)", "metric": "accuracy", "reference": 0.8815533980582524, "rerun": 0.8757281553398058, "diff_pts": -0.5825, "within": true},
+        {"row": "student qwen2.5-1.5b (teacher labels)", "metric": "accuracy", "reference": 0.8912621359223301, "rerun": 0.8834951456310679, "diff_pts": -0.7767, "within": true},
+        {"row": "student qwen2.5-0.5b (gold labels)", "metric": "accuracy", "reference": 0.7613821138211382, "rerun": 0.7605691056910569, "diff_pts": -0.0813, "within": true}
+      ],
+      "max_abs_diff_pts": 0.7767,
+      "all_within": true,
+      "selected_run": {
+        "reference": "qwen2.5-0.5b-full-s13",
+        "rerun": "qwen2.5-0.5b-full-s13",
+        "same": true,
+        "reference_reason": "qwen2.5-0.5b-full-s13: best validation agreement (0.8816) among 3 run(s) of mlx-community/Qwen2.5-0.5B-Instruct-4bit; mlx-community/Qwen2.5-1.5B-Instruct-4bit vs mlx-community/Qwen2.5-0.5B-Instruct-4bit: large gains 0.97 points, below the 1.00-point minimum",
+        "rerun_reason": "qwen2.5-0.5b-full-s13: best validation agreement (0.8791) among 3 run(s) of mlx-community/Qwen2.5-0.5B-Instruct-4bit; mlx-community/Qwen2.5-1.5B-Instruct-4bit vs mlx-community/Qwen2.5-0.5B-Instruct-4bit: large gains 0.88 points, below the 1.00-point minimum"
+      },
+      "cascade": {
+        "reference": {
+          "run_id": "qwen2.5-0.5b-full-s13",
+          "metrics": {"agreement": 0.9758721878056733},
+          "escalation_rate_test": 0.23736550374959245,
+          "target_met_on_test": true
+        },
+        "rerun": {
+          "run_id": "qwen2.5-0.5b-full-s13",
+          "metrics": {"agreement": 0.9721726190476191},
+          "escalation_rate_test": 0.2451219512195122,
+          "target_met_on_test": true
+        }
+      }
+    },
+    "invoices": {
+      "rows": [
+        {"row": "teacher (deepseek/deepseek-v4-flash-0731)", "metric": "field_micro_f1", "reference": 0.9998, "rerun": 0.9996, "diff_pts": -0.02, "within": true},
+        {"row": "zero-shot qwen2.5-0.5b", "metric": "field_micro_f1", "reference": 0.35, "rerun": 0.3556, "diff_pts": 0.56, "within": true},
+        {"row": "student qwen2.5-1.5b (teacher labels)", "metric": "field_micro_f1", "reference": 0.9210526315789473, "rerun": 0.9058, "diff_pts": -1.53, "within": true},
+        {"row": "student qwen2.5-1.5b (gold labels)", "metric": "field_micro_f1", "reference": 0.8814, "rerun": 0.8781, "diff_pts": -0.33, "within": true}
+      ],
+      "max_abs_diff_pts": 1.53,
+      "all_within": true,
+      "selected_run": {
+        "reference": "qwen2.5-0.5b-full-s13",
+        "rerun": "qwen2.5-1.5b-full-s13",
+        "same": false,
+        "reference_reason": "qwen2.5-0.5b-full-s13: best validation agreement (0.9475) among 1 run(s) of mlx-community/Qwen2.5-0.5B-Instruct-4bit; mlx-community/Qwen2.5-1.5B-Instruct-4bit vs mlx-community/Qwen2.5-0.5B-Instruct-4bit: large gains 0.90 points, below the 1.00-point minimum",
+        "rerun_reason": "qwen2.5-1.5b-full-s13: best validation agreement (0.9854) among 1 run(s) of mlx-community/Qwen2.5-1.5B-Instruct-4bit; mlx-community/Qwen2.5-1.5B-Instruct-4bit vs mlx-community/Qwen2.5-0.5B-Instruct-4bit: large gains 3.79 points (>= 1.00) at 1.79x the small p95 (< 3x)"
+      },
+      "cascade": {
+        "reference": {
+          "run_id": "qwen2.5-1.5b-full-s13",
+          "metrics": {"agreement": 0.940929203539823},
+          "escalation_rate_test": 0.016666666666666666,
+          "target_met_on_test": false
+        },
+        "rerun": {
+          "run_id": "qwen2.5-1.5b-full-s13",
+          "metrics": {"agreement": 0.9298245614035088},
+          "escalation_rate_test": 0.025,
+          "target_met_on_test": false
+        }
+      }
+    }
+  },
+  "all_within": true,
+  "command": "scripts/reproduce.sh on a second machine, then scripts/compare_reports.py"
+}

@@ -149,8 +149,180 @@
         "has_gold": true
       },
       {
+        "system": "zero-shot",
+        "name": "zero-shot qwen2.5-0.5b",
+        "base_model": "mlx-community/Qwen2.5-0.5B-Instruct-4bit",
+        "labels": "zero-shot",
+        "run_ids": [
+          "zero-shot-qwen2.5-0.5b"
+        ],
+        "n": 36,
+        "metrics": {
+          "json_validity": 0.4166666666666667,
+          "field_micro_f1": 0.35,
+          "field_exact_match": 0.2222222222222222,
+          "doc_exact_match": 0.027777777777777776,
+          "agreement": 0.34,
+          "ece": 0.16,
+          "auroc": 0.75
+        },
+        "ci": {
+          "json_validity": [
+            0.25,
+            0.5833333333333334
+          ],
+          "field_micro_f1": [
+            0.2,
+            0.5
+          ],
+          "field_exact_match": [
+            0.1111111111111111,
+            0.3333333333333333
+          ],
+          "doc_exact_match": [
+            0.0,
+            0.08333333333333333
+          ],
+          "agreement": [
+            0.19,
+            0.49
+          ],
+          "ece": [
+            0.1,
+            0.22
+          ],
+          "auroc": [
+            0.6,
+            0.9
+          ]
+        },
+        "ci_cluster": {
+          "json_validity": [
+            0.29,
+            0.5567083333333332
+          ],
+          "field_micro_f1": [
+            0.2387,
+            0.5035
+          ],
+          "field_exact_match": [
+            0.1543,
+            0.3602
+          ],
+          "doc_exact_match": [
+            0.0,
+            0.0517
+          ],
+          "agreement": [
+            0.2351,
+            0.5035
+          ],
+          "ece": [
+            0.1112,
+            0.2131
+          ],
+          "auroc": [
+            0.6,
+            0.9
+          ]
+        },
+        "calibration": {
+          "reference": "gold",
+          "ece": 0.16,
+          "auroc": 0.75,
+          "brier": 0.2,
+          "isotonic_ece": 0.03
+        }
+      },
+      {
+        "system": "zero-shot",
+        "name": "zero-shot qwen2.5-1.5b",
+        "base_model": "mlx-community/Qwen2.5-1.5B-Instruct-4bit",
+        "labels": "zero-shot",
+        "run_ids": [
+          "zero-shot-qwen2.5-1.5b"
+        ],
+        "n": 36,
+        "metrics": {
+          "json_validity": 0.6388888888888888,
+          "field_micro_f1": 0.7,
+          "field_exact_match": 0.5555555555555556,
+          "doc_exact_match": 0.3333333333333333,
+          "agreement": 0.7,
+          "ece": 0.1,
+          "auroc": 0.95
+        },
+        "ci": {
+          "json_validity": [
+            0.4722222222222222,
+            0.8055555555555556
+          ],
+          "field_micro_f1": [
+            0.55,
+            0.85
+          ],
+          "field_exact_match": [
+            0.3888888888888889,
+            0.7222222222222222
+          ],
+          "doc_exact_match": [
+            0.1666666666666667,
+            0.5
+          ],
+          "agreement": [
+            0.55,
+            0.85
+          ],
+          "ece": [
+            0.05,
+            0.15
+          ],
+          "auroc": [
+            0.85,
+            0.99
+          ]
+        },
+        "ci_cluster": {
+          "json_validity": [
+            0.3265,
+            0.8683
+          ],
+          "field_micro_f1": [
+            0.4673,
+            0.8909
+          ],
+          "field_exact_match": [
+            0.3041,
+            0.8233
+          ],
+          "doc_exact_match": [
+            0.1967,
+            0.5883
+          ],
+          "agreement": [
+            0.4673,
+            0.8909
+          ],
+          "ece": [
+            0.0503,
+            0.1455
+          ],
+          "auroc": [
+            0.85,
+            0.99
+          ]
+        },
+        "calibration": {
+          "reference": "gold",
+          "ece": 0.1,
+          "auroc": 0.95,
+          "brier": 0.08,
+          "isotonic_ece": 0.02
+        }
+      },
+      {
         "system": "student",
-        "name": "student qwen2.5-0.5b (teacher labels, quick profile)",
+        "name": "student qwen2.5-0.5b (teacher labels, 3 seeds)",
         "base_model": "mlx-community/Qwen2.5-0.5B-Instruct-4bit",
         "labels": "teacher",
         "run_ids": [
@@ -159,23 +331,23 @@
         "n": 36,
         "profile": "quick",
         "backend": "mlx",
-        "n_seeds": 1,
+        "n_seeds": 3,
         "metrics": {
           "json_validity": 0.75,
-          "field_micro_f1": 0.5870020964360587,
-          "field_exact_match": 0.5104166666666666,
-          "doc_exact_match": 0.0,
-          "agreement": 0.5828092243186582,
-          "ece": 0.1260368416261408,
+          "field_micro_f1": 0.5802159765897973,
+          "field_exact_match": 0.5081018518518517,
+          "doc_exact_match": 0.009259259259259259,
+          "agreement": 0.5788183525506638,
+          "ece": 0.12634561387538026,
           "auroc": null
         },
         "std": {
-          "json_validity": null,
-          "field_micro_f1": null,
-          "field_exact_match": null,
-          "doc_exact_match": null,
-          "agreement": null,
-          "ece": null,
+          "json_validity": 0.05555555555555558,
+          "field_micro_f1": 0.035644080588344076,
+          "field_exact_match": 0.03478004444749239,
+          "doc_exact_match": 0.016037507477489603,
+          "agreement": 0.03532573010093253,
+          "ece": 0.01850193247275606,
           "auroc": null
         },
         "per_seed": [
@@ -190,6 +362,34 @@
               "doc_exact_match": 0.0,
               "agreement": 0.5828092243186582,
               "ece": 0.1260368416261408,
+              "auroc": null
+            }
+          },
+          {
+            "run_id": "qwen2.5-0.5b-quick-s14",
+            "seed": 14,
+            "n": 36,
+            "metrics": {
+              "json_validity": 0.6944444444444444,
+              "field_micro_f1": 0.5416666666666666,
+              "field_exact_match": 0.4722222222222222,
+              "doc_exact_match": 0.027777777777777776,
+              "agreement": 0.5416666666666666,
+              "ece": 0.145,
+              "auroc": null
+            }
+          },
+          {
+            "run_id": "qwen2.5-0.5b-quick-s15",
+            "seed": 15,
+            "n": 36,
+            "metrics": {
+              "json_validity": 0.8055555555555556,
+              "field_micro_f1": 0.6119791666666666,
+              "field_exact_match": 0.5416666666666666,
+              "doc_exact_match": 0.0,
+              "agreement": 0.6119791666666666,
+              "ece": 0.108,
               "auroc": null
             }
           }
@@ -724,8 +924,8 @@
         "primary": {
           "n": 36,
           "mean_confidence": 0.1260368416261408,
-          "auroc_vs_teacher": null,
-          "auroc_vs_gold": null,
+          "auroc_vs_teacher": 0.846,
+          "auroc_vs_gold": 0.846,
           "accuracy_vs_teacher": 0.0,
           "accuracy_vs_gold": 0.0,
           "ece_vs_teacher": 0.1260368416261408,
@@ -734,15 +934,15 @@
         "alternative": {
           "n": 36,
           "mean_confidence": 0.9229567151053661,
-          "auroc_vs_teacher": null,
-          "auroc_vs_gold": null,
+          "auroc_vs_teacher": 0.858,
+          "auroc_vs_gold": 0.858,
           "accuracy_vs_teacher": 0.0,
           "accuracy_vs_gold": 0.0,
           "ece_vs_teacher": 0.9229567151053661,
           "ece_vs_gold": 0.9229567151053661
         },
         "chosen": "primary",
-        "better_auroc": null
+        "better_auroc": "alternative"
       }
     },
     "test_scorings": 1,
@@ -762,14 +962,14 @@
     "always_escalate": false,
     "warning": null,
     "escalation_rate": {
-      "valid": 0.75,
-      "test": 0.8333333333333334
+      "valid": 0.0,
+      "test": 0.05
     },
     "quality": {
       "valid": 0.9722222222222222,
-      "test": 0.9759704251386322
+      "test": 0.9
     },
-    "target_met_on_test": true,
+    "target_met_on_test": false,
     "cascade_minus_teacher": {
       "target_metric": {
         "metric": "agreement",

@@ -1,0 +1,77 @@
+{
+  "task": "banking77",
+  "date": "2026-09-28T09:30:00+00:00",
+  "hardware": {
+    "model": "Mac16,9",
+    "cpu": "Apple M4 Max",
+    "memory_gb": 64.0,
+    "os": "macOS 26.6.2"
+  },
+  "cost_latency": {
+    "teacher": {
+      "usd_per_request": 0.000005931765853658536,
+      "usd_per_1k": 0.0059317658536585365,
+      "latency_ms": {"p50": 594.2275839624926, "p95": 1242.0033750182472, "mean": 682.975285203817, "n": 3075},
+      "concurrency": 8,
+      "recorded_between": ["2026-09-26", "2026-09-26"],
+      "list_price_usd_per_1k": 0.05807896585365854
+    },
+    "student": {
+      "usd_per_1k": 0.00001229050462273977,
+      "latency_ms": {"p50": 11.8, "p95": 17.4, "mean": 12.3, "n": 3075},
+      "source": "bench",
+      "note": "measured by `taskdistill bench` against `serve --threshold 0` (warm, concurrency 1)"
+    },
+    "cascade": {
+      "usd_per_1k": 0.0014237981651376146,
+      "escalation_rate": 0.23804878048780487,
+      "latency_ms": {"p50": 12.9, "p95": 245.6, "mean": 168.4, "n": 3075},
+      "list_price_usd_per_1k": 0.01392700060556049
+    },
+    "assumptions": {
+      "local_watts": 20.0,
+      "usd_per_kwh": 0.3,
+      "text": "local cost = 20 W x wall time x $0.3/kWh; hardware amortisation off"
+    }
+  },
+  "break_even": {
+    "volume": 17420,
+    "requests": 17420,
+    "list_price": {
+      "volume": 1740
+    }
+  },
+  "live_bench": {
+    "student_only": {
+      "mode": "student_only",
+      "run_id": "qwen2.5-0.5b-full-s13",
+      "date": "2026-09-28T09:00:00+00:00",
+      "n": 3075,
+      "latency_ms": {"p50": 12.4, "p95": 18.1, "mean": 12.9, "n": 3075},
+      "escalation_rate": 0.0,
+      "spend_usd": 0,
+      "machine_state": {"load_average": [0.62, 0.58, 0.55]},
+      "hardware": {"model": "Mac16,9", "cpu": "Apple M4 Max", "memory_gb": 64.0, "os": "macOS 26.6.2"}
+    },
+    "cascade": {
+      "mode": "cascade",
+      "run_id": "qwen2.5-0.5b-full-s13",
+      "date": "2026-09-28T09:15:00+00:00",
+      "n": 3075,
+      "latency_ms": {"p50": 13.1, "p95": 251.3, "mean": 171.9, "n": 3075},
+      "escalation_rate": 0.24065040650406503,
+      "spend_usd": 0.0043,
+      "machine_state": {"load_average": [0.81, 0.70, 0.61]},
+      "hardware": {"model": "Mac16,9", "cpu": "Apple M4 Max", "memory_gb": 64.0, "os": "macOS 26.6.2"}
+    },
+    "cross_check": {
+      "cascade": {
+        "composed_p50": 12.9,
+        "composed_p95": 245.6,
+        "measured_p50": 13.1,
+        "measured_p95": 251.3
+      }
+    },
+    "notes": []
+  }
+}

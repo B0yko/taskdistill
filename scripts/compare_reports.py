@@ -97,8 +97,8 @@ def main() -> int:
     for task, result in out["tasks"].items():
         sel = result["selected_run"]
         print(
-            f"{task}: max |diff| {result['max_abs_diff_pts']} pts, all within {args.tolerance}: {result['all_within']}; "
-            f"selected {sel['reference']} vs {sel['rerun']}"
+            f"{task}: max |diff| {result['max_abs_diff_pts']} pts, all within {args.tolerance}: "
+            f"{result['all_within']}; selected {sel['reference']} vs {sel['rerun']}"
         )
     return 0
 

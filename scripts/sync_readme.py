@@ -98,6 +98,25 @@ def pts(value: Any, decimals: int = 1) -> str:
     return DASH if number is None else f"{number * 100:+.{decimals}f} pts"
 
 
+def points(value: Any, decimals: int = 1) -> str:
+    """Like :func:`pts`, but spelled out for prose about a gain: ``+0.97 points`` -- the base-model rule is a
+    difference in points, never a percentage of anything."""
+    number = _num(value)
+    if number is None:
+        return DASH
+    return f"{number * 100:+.{decimals}f} points"
+
+
+def min_gain_points(value: Any) -> str:
+    """The base-model rule's minimum gain, spelled out without a forced decimal count: ``1 point`` for exactly
+    one (not ``1.00 points``), ``1.5 points`` when it is fractional -- singular only for exactly one point."""
+    number = _num(value)
+    if number is None:
+        return DASH
+    text = f"{number * 100:g}"
+    return f"{text} point" if text == "1" else f"{text} points"
+
+
 def plain(value: Any, digits: int = 3) -> str:
     number = _num(value)
     return DASH if number is None else f"{number:.{digits}f}"
@@ -158,6 +177,20 @@ def hardware_text(hardware: Any) -> str:
     return ", ".join(str(part) for part in parts if part) or DASH
 
 
+def date_only(value: Any) -> str:
+    """The ``YYYY-MM-DD`` prefix of an ISO date or datetime string."""
+    text = str(value) if value else ""
+    return text.split("T", 1)[0] if text else DASH
+
+
+def times_text(count: Any) -> str:
+    """``8 times``, or ``1 time`` for exactly one."""
+    number = _num(count)
+    if number is None:
+        return DASH
+    return f"{integer(number)} time" if number == 1 else f"{integer(number)} times"
+
+
 def load_average_text(values: Any) -> str:
     if not isinstance(values, list | tuple) or not values:
         return DASH
@@ -213,6 +246,35 @@ def find_row(
     return None
 
 
+_SIZE_RE = re.compile(r"(\d+(?:\.\d+)?)\s*B", re.IGNORECASE)
+
+
+def base_size(base_model: Any) -> tuple[float, str]:
+    """``(0.5, "0.5B")`` parsed out of a base-model id such as ``mlx-community/Qwen2.5-0.5B-Instruct-4bit``."""
+    match = _SIZE_RE.search(str(base_model or ""))
+    if not match:
+        return (math.inf, str(base_model or DASH))
+    return (float(match.group(1)), f"{match.group(1)}B")
+
+
+def zero_shot_rows(rows: Sequence[Mapping[str, Any]], task_type: str) -> list[Mapping[str, Any]]:
+    """Every zero-shot row, smallest base first, labelled ``base <size> zero-shot``.
+
+    Only the first row names what the zero-shot prompt includes (the label list for classification, the JSON
+    Schema for extraction); later rows are the same setup at a different base size, so the note is not repeated.
+    """
+    matches = sorted(
+        (row for row in rows if row.get("system") == "zero-shot"), key=lambda row: base_size(row.get("base_model"))[0]
+    )
+    note = "labels in the prompt" if task_type == "classification" else "schema in the prompt"
+    out = []
+    for i, row in enumerate(matches):
+        _, size = base_size(row.get("base_model"))
+        label = f"base {size} zero-shot" + (f" ({note})" if i == 0 else "")
+        out.append({**row, "name": label})
+    return out
+
+
 def metric_cell(row: Mapping[str, Any], metric: str) -> str:
     metrics = row.get("metrics") or {}
     if metric not in metrics:
@@ -223,7 +285,10 @@ def metric_cell(row: Mapping[str, Any], metric: str) -> str:
     text = plain(value) if metric == "auroc" else pct(value)
     std = _num((row.get("std") or {}).get(metric))
     if (row.get("n_seeds") or 0) > 1 and std is not None:
-        text += f" ± {std:.3f}" if metric == "auroc" else f" ± {std * 100:.1f}"
+        # A row aggregating more than one seed shows mean +/- sample standard deviation only: its own "ci" is
+        # one particular seed's bootstrap interval, not an interval of the mean, so it is never shown here --
+        # see the per-seed table instead, which attaches it to that one seed.
+        return text + (f" ± {std:.3f}" if metric == "auroc" else f" ± {std * 100:.1f}")
     ci = interval((row.get("ci") or {}).get(metric), as_plain=(metric == "auroc"))
     return f"{text} {ci}" if ci else text
 
@@ -308,7 +373,33 @@ def operating_point_block(report: Mapping[str, Any]) -> list[str]:
          diff_text(gold_diff)],
         ["Target held on test", DASH if met is None else ("yes" if met else "no")],
     ]  # fmt: skip
-    return [*md_table(["", "Value"], rows), ""]
+    lines = [*md_table(["", "Value"], rows), ""]
+    outcome = _operating_point_outcome(op, metric_label, reference)
+    if outcome:
+        lines += [outcome, ""]
+    return lines
+
+
+def _operating_point_outcome(op: Mapping[str, Any], metric_label: str, reference: str) -> str | None:
+    """A plain sentence on whether the validation-chosen threshold met the target on test, with the numbers that
+    made it true (or not) -- the table above says "yes"/"no"; this says why, so the "no" case cannot read as if
+    the target had held."""
+    met = op.get("target_met_on_test")
+    if met is None:
+        return None
+    quality = op.get("quality") or {}
+    rates = op.get("escalation_rate") or {}
+    target_text, valid_q, test_q = pct(op.get("target")), pct(quality.get("valid")), pct(quality.get("test"))
+    valid_esc, test_esc = pct(rates.get("valid")), pct(rates.get("test"))
+    if met:
+        return (
+            f"Target held on test: yes — {metric_label} against the {reference} was {test_q} on test (target "
+            f"{target_text}) at a {test_esc} escalation rate, close to the {valid_q} on validation at {valid_esc}."
+        )
+    return (
+        f"Target held on test: no — {metric_label} against the {reference} met the {target_text} target on "
+        f"validation ({valid_q} at {valid_esc} escalation) but fell to {test_q} on test ({test_esc} escalation)."
+    )
 
 
 def teacher_latency_phrase(report: Mapping[str, Any]) -> str:
@@ -371,22 +462,38 @@ def render_quickstart_timing() -> str:
 # == results: per-section builders ======================================================================
 
 
+def _extra_zero_shot_phrase(task_label: str, report: Mapping[str, Any]) -> str | None:
+    """``"the invoices table also shows the 1.5B zero-shot base"`` when a task's report has more than one
+    zero-shot row (a size beyond the first, which the provenance paragraph already covers as the norm)."""
+    rows = [row for row in (report.get("quality") or {}).get("rows") or [] if row.get("system") == "zero-shot"]
+    if len(rows) <= 1:
+        return None
+    extra = sorted(rows, key=lambda row: base_size(row.get("base_model"))[0])[1:]
+    sizes = " and ".join(base_size(row.get("base_model"))[1] for row in extra)
+    plural = "s" if len(extra) > 1 else ""
+    return f"the {task_label.lower()} table also shows the {sizes} zero-shot base{plural}"
+
+
 def _provenance_paragraph(banking: Mapping[str, Any], invoices: Mapping[str, Any]) -> list[str]:
     hardware = hardware_text(banking.get("hardware"))
-    report_date = banking.get("date") or DASH
+    report_date = date_only(banking.get("date"))
     teacher_recorded = ((banking.get("cost_latency") or {}).get("teacher") or {}).get("recorded_between") or []
     recorded_date = teacher_recorded[-1] if teacher_recorded else DASH
-    access_bits = []
-    for name, report in (("Banking77", banking), ("Invoices", invoices)):
-        count = _num((report.get("test_access") or {}).get("count"))
-        if count is not None:
-            access_bits.append(f"{name} {integer(count)} time{'' if count == 1 else 's'}")
-    access_text = "; ".join(access_bits) if access_bits else DASH
+    extra_bits = [
+        phrase
+        for label, report in (("Banking77", banking), ("Invoices", invoices))
+        for phrase in [_extra_zero_shot_phrase(label, report)]
+        if phrase
+    ]
+    extra_text = f", plus one extra zero-shot evaluation ({'; '.join(extra_bits)})" if extra_bits else ""
+    banking_times = times_text((banking.get("test_access") or {}).get("count"))
+    invoices_times = times_text((invoices.get("test_access") or {}).get("count"))
     para = (
         f"Numbers below come from `scripts/reproduce.sh` (full profile, recorded teacher outputs) on {report_date} "
-        f"on {hardware}; teacher outputs were recorded on {recorded_date}. The test split was scored {access_text} "
-        "in this workspace, and nothing was chosen with it: every choice (base model, seed, threshold, isotonic "
-        "calibration) was made on the validation split alone. Figures marked “recorded” below (the "
+        f"on {hardware}{extra_text}; teacher outputs were recorded on {recorded_date}. The test splits were scored "
+        f"{banking_times} (Banking77) and {invoices_times} (invoices), each time by an evaluation shown in these "
+        "tables; no choice used them: every choice (base model, seed, threshold, isotonic calibration) was made on "
+        "the validation split alone. Figures marked “recorded” below (the "
         "teacher and cascade rows) replay the teacher outputs captured then, not a live call. The live bench and "
         "latency numbers are dated measurements and are not expected to reproduce exactly on different hardware or "
         "under different load. Unless noted otherwise, every score has a 95% paired bootstrap interval in brackets "
@@ -396,45 +503,72 @@ def _provenance_paragraph(banking: Mapping[str, Any], invoices: Mapping[str, Any
 
 
 def _seeded_row_table(row: Mapping[str, Any], columns: Sequence[str]) -> list[str]:
-    rows = [
-        [f"`{seed.get('run_id')}`", seed.get("seed")]
-        + [plain((seed.get("metrics") or {}).get(m)) if m == "auroc" else pct((seed.get("metrics") or {}).get(m))
-           for m in columns]
-        for seed in row.get("per_seed") or []
-    ]  # fmt: skip
-    lines = [f"Per-seed scores (selected: `{row.get('selected_run')}`):", ""]
+    """Every seed's own score, with an interval where one is available for that seed.
+
+    Only the validation-selected seed has one here: the row's own ``ci`` is the bootstrap interval of that one
+    seed's evaluation (not of the seeds' mean), so it is attached to that seed's row and to no other.
+    """
+    selected_run, row_ci = row.get("selected_run"), row.get("ci") or {}
+    rows = []
+    for seed in row.get("per_seed") or []:
+        run_id, selected = seed.get("run_id"), seed.get("run_id") == row.get("selected_run")
+        seed_metrics, seed_ci = seed.get("metrics") or {}, seed.get("ci") or (row_ci if selected else {})
+        cells = []
+        for m in columns:
+            value = plain(seed_metrics.get(m)) if m == "auroc" else pct(seed_metrics.get(m))
+            ci_text = interval(seed_ci.get(m), as_plain=(m == "auroc"))
+            cells.append(f"{value} {ci_text}" if ci_text else value)
+        label = f"`{run_id}`" + (" (validation-selected)" if selected else "")
+        rows.append([label, seed.get("seed"), *cells])
+    lines = [f"Per-seed scores for `{row.get('name')}` (selected run: `{selected_run}`):", ""]
     lines += md_table(["Run", "Seed", *[col_label(m) for m in columns]], rows)
     lines.append("")
     return lines
 
 
-def _quality_section_banking77(report: Mapping[str, Any]) -> list[str]:
-    quality = report.get("quality") or {}
-    all_rows = quality.get("rows") or []
-    columns = list(quality.get("student_columns") or quality.get("columns") or [])
+def _seeded_rows_tables(all_rows: Sequence[Mapping[str, Any]], columns: Sequence[str]) -> list[str]:
+    """A per-seed table for every student (teacher-labels) row -- at either base size -- with more than one
+    seed, so the aggregate row's mean +/- std (see :func:`metric_cell`) always has its detail nearby."""
+    lines: list[str] = []
+    for hint in ("0.5B", "1.5B"):
+        row = find_row(all_rows, "student", labels="teacher", base_hint=hint)
+        if row and (row.get("n_seeds") or 0) > 1:
+            lines += _seeded_row_table(row, columns)
+    return lines
+
+
+def _ordered_quality_rows(all_rows: Sequence[Mapping[str, Any]], task_type: str) -> list[Mapping[str, Any]]:
+    """Teacher, every zero-shot row (smallest base first), TF-IDF, each student base (teacher labels), the
+    gold-label student, then the cascade -- whichever of these exist in this task's report."""
     order = [
         find_row(all_rows, "teacher"),
-        find_row(all_rows, "zero-shot"),
+        *zero_shot_rows(all_rows, task_type),
         find_row(all_rows, "tfidf"),
         find_row(all_rows, "student", labels="teacher", base_hint="0.5B"),
         find_row(all_rows, "student", labels="teacher", base_hint="1.5B"),
         find_row(all_rows, "student", labels="gold"),
         find_row(all_rows, "cascade"),
     ]
-    rows = [row for row in order if row is not None]
+    return [row for row in order if row is not None]
+
+
+def _quality_section_banking77(report: Mapping[str, Any]) -> list[str]:
+    quality = report.get("quality") or {}
+    all_rows = quality.get("rows") or []
+    columns = list(quality.get("student_columns") or quality.get("columns") or [])
+    rows = _ordered_quality_rows(all_rows, "classification")
     lines = [
         "### Banking77 (77 intents)",
         "",
         f"Test split, n = {integer(quality.get('n'))}. Cells are the score and its 95% paired bootstrap interval; "
-        "the 3-seed student row shows mean ± sample standard deviation, with the interval of the "
-        "validation-selected seed. ECE and AUROC use raw (pre-isotonic) student confidence.",
+        "a row aggregating more than one seed shows mean ± sample standard deviation only (see the per-seed "
+        "table below for each seed's own score, and interval where the eval recorded one). ECE and AUROC use "
+        "raw (pre-isotonic) student confidence.",
         "",
         *quality_table(rows, columns),
         "",
+        *_seeded_rows_tables(all_rows, columns),
     ]
-    seeded = find_row(all_rows, "student", labels="teacher", base_hint="0.5B")
-    if seeded and (seeded.get("n_seeds") or 0) > 1:
-        lines += _seeded_row_table(seeded, columns)
     lines += operating_point_block(report)
     curve = (report.get("operating_point") or {}).get("curve_png")
     if curve:
@@ -446,16 +580,7 @@ def _quality_section_invoices(report: Mapping[str, Any]) -> list[str]:
     quality = report.get("quality") or {}
     all_rows = quality.get("rows") or []
     columns = list(quality.get("student_columns") or quality.get("columns") or [])
-    order = [
-        find_row(all_rows, "teacher"),
-        find_row(all_rows, "zero-shot"),
-        find_row(all_rows, "tfidf"),
-        find_row(all_rows, "student", labels="teacher", base_hint="0.5B"),
-        find_row(all_rows, "student", labels="teacher", base_hint="1.5B"),
-        find_row(all_rows, "student", labels="gold"),
-        find_row(all_rows, "cascade"),
-    ]
-    rows = [row for row in order if row is not None]
+    rows = _ordered_quality_rows(all_rows, "extraction")
     n_groups = quality.get("n_groups")
     layouts = (
         f" The test set is {integer(n_groups)} layouts never seen in training, so the effective sample is "
@@ -468,14 +593,18 @@ def _quality_section_invoices(report: Mapping[str, Any]) -> list[str]:
         "### Invoices (8-field JSON extraction)",
         "",
         f"Test split, n = {integer(quality.get('n'))}.{layouts} Cells are the score and its 95% paired bootstrap "
-        "interval (document-level).",
+        "interval (document-level). A row aggregating more than one seed shows mean ± sample standard "
+        "deviation only (see the per-seed table below for each seed's own score, and interval where the eval "
+        "recorded one).",
         "",
         *quality_table(rows, columns),
         "",
+        *_seeded_rows_tables(all_rows, columns),
     ]
     if quality.get("cluster_bootstrap") and _num(n_groups):
         cluster_rows = [
-            [row.get("name")] + [interval((row.get("ci_cluster") or {}).get(m)) or DASH for m in columns]
+            [row.get("name")]
+            + [interval((row.get("ci_cluster") or {}).get(m), as_plain=(m == "auroc")) or DASH for m in columns]
             for row in rows
             if row.get("ci_cluster")
         ]
@@ -538,13 +667,37 @@ def _break_even_sentence(report: Mapping[str, Any]) -> str | None:
     return text + "."
 
 
-def _cost_and_latency_section(banking: Mapping[str, Any], invoices: Mapping[str, Any]) -> list[str]:
+def _cost_and_latency_section(
+    banking: Mapping[str, Any],
+    invoices: Mapping[str, Any],
+    banking_studio: Mapping[str, Any] | None = None,
+    invoices_studio: Mapping[str, Any] | None = None,
+) -> list[str]:
     lines = ["### Cost and latency", ""]
     assumptions = (banking.get("assumptions") or {}).get("text") or DASH
     lines += [f"Energy assumptions: {assumptions}.", ""]
-    for label, report in (("Banking77", banking), ("Invoices", invoices)):
-        lines += [f"**{label}**", "", *_cost_latency_task_table(report), ""]
-        sentence = _break_even_sentence(report)
+    for label, report, studio in (
+        ("Banking77", banking, banking_studio),
+        ("Invoices", invoices, invoices_studio),
+    ):
+        lines += [f"**{label}**", ""]
+        if studio:
+            lines += [
+                f"Measured on {hardware_text(studio.get('hardware'))}, {date_only(studio.get('date'))}:",
+                "",
+                *_cost_latency_task_table(studio),
+                "",
+            ]
+            mba_latency = ((report.get("cost_latency") or {}).get("student") or {}).get("latency_ms") or {}
+            lines += [
+                f"For comparison, the MacBook Air's student latency was {ms(mba_latency.get('p50'))} ms p50 / "
+                f"{ms(mba_latency.get('p95'))} ms p95 (in-process eval, not through the server).",
+                "",
+            ]
+            sentence = _break_even_sentence(studio)
+        else:
+            lines += [*_cost_latency_task_table(report), ""]
+            sentence = _break_even_sentence(report)
         if sentence:
             lines += [sentence, ""]
     lines += [
@@ -555,28 +708,41 @@ def _cost_and_latency_section(banking: Mapping[str, Any], invoices: Mapping[str,
     return lines
 
 
-def _live_bench_section(banking: Mapping[str, Any], invoices: Mapping[str, Any]) -> list[str]:
+def _live_bench_section(
+    banking: Mapping[str, Any],
+    invoices: Mapping[str, Any],
+    banking_studio: Mapping[str, Any] | None = None,
+    invoices_studio: Mapping[str, Any] | None = None,
+) -> list[str]:
     lines = ["### Live bench cross-check", ""]
     any_measured = False
-    for label, report in (("Banking77", banking), ("Invoices", invoices)):
-        bench = report.get("live_bench") or {}
+    for label, report, studio in (
+        ("Banking77", banking, banking_studio),
+        ("Invoices", invoices, invoices_studio),
+    ):
+        source = studio or report
+        bench = source.get("live_bench") or {}
         student_only, cascade = bench.get("student_only"), bench.get("cascade")
         if not student_only and not cascade:
             lines += [f"**{label}**: not measured yet.", ""]
             continue
         any_measured = True
-        lines += [f"**{label}**", ""]
+        header = f"**{label}**"
+        if studio:
+            header += f" (measured on {hardware_text(studio.get('hardware'))}, {date_only(studio.get('date'))})"
+        lines += [header, ""]
         rows = []
         for mode_label, run in (("Student only", student_only), ("Cascade", cascade)):
             if not run:
                 continue
             latency = run.get("latency_ms") or {}
+            load_average = (run.get("machine_state") or {}).get("load_average")
             rows.append([
-                mode_label, run.get("date") or DASH, integer(run.get("n")),
+                mode_label, run.get("run_id") or DASH, run.get("date") or DASH, integer(run.get("n")),
                 ms(latency.get("p50")), ms(latency.get("p95")), pct(run.get("escalation_rate")),
-                usd(run.get("spend_usd")), load_average_text(run.get("load_average")),
+                usd(run.get("spend_usd")), load_average_text(load_average),
             ])  # fmt: skip
-        lines += md_table(["Mode", "Date", "n", "p50 ms", "p95 ms", "Escalated", "Spend", "Load average"], rows)
+        lines += md_table(["Mode", "Run", "Date", "n", "p50 ms", "p95 ms", "Escalated", "Spend", "Load average"], rows)
         lines.append("")
         check = (bench.get("cross_check") or {}).get("cascade")
         if check:
@@ -634,6 +800,82 @@ def _training_section(training: Mapping[str, Any] | None) -> list[str]:
     return lines
 
 
+#: The one metric ``scripts/compare_reports.py`` rows are compacted to per task: accuracy for classification,
+#: field micro-F1 for extraction, matching the metric each task's own quality table leads with.
+MAIN_METRIC_BY_TASK = {"banking77": "accuracy", "invoices": "field_micro_f1"}
+
+
+def _gain_phrase(reason: Any) -> str | None:
+    """The tail of a base-model selection reason that states the gain, e.g. ``large gains 0.97 points, below
+    the 1.00-point minimum`` -- quoted alone rather than the whole reason, which also names the run and its
+    validation score."""
+    match = re.search(r"(?:large|small) gains?.*$", str(reason or ""))
+    return match.group(0) if match else None
+
+
+def _reproducibility_section(reproduction: Mapping[str, Any] | None) -> list[str]:
+    """``reports/reproduction.json``, written by ``scripts/compare_reports.py`` after ``scripts/reproduce.sh`` ran
+    again on a second machine: optional, so nothing is rendered until it exists."""
+    if not reproduction:
+        return []
+    reference, rerun = reproduction.get("reference") or {}, reproduction.get("rerun") or {}
+    tasks = reproduction.get("tasks") or {}
+    tolerance = _num(reproduction.get("tolerance_pts"))
+    tolerance_text = f"{tolerance:.1f} points" if tolerance is not None else DASH
+    lines = [
+        "### Reproducibility on a second machine",
+        "",
+        f"`scripts/reproduce.sh` (full profile) was run again on a second machine and compared with "
+        f"`scripts/compare_reports.py`; tolerance {tolerance_text} on each test-split metric.",
+        "",
+        f"Reference: {hardware_text(reference.get('hardware'))}, {date_only(reference.get('date'))}. Rerun: "
+        f"{hardware_text(rerun.get('hardware'))}, {date_only(rerun.get('date'))}.",
+        "",
+    ]
+    task_rows: list[list[Any]] = []
+    metric_rows: list[list[Any]] = []
+    selected_sentences: list[str] = []
+    for task in sorted(tasks):
+        result = tasks[task] or {}
+        max_diff = _num(result.get("max_abs_diff_pts"))
+        task_rows.append([
+            _task_label(task), f"{max_diff:.2f} pts" if max_diff is not None else DASH,
+            "yes" if result.get("all_within") else "no",
+        ])  # fmt: skip
+        main_metric = MAIN_METRIC_BY_TASK.get(task, "accuracy")
+        for row in result.get("rows") or []:
+            name = str(row.get("row") or DASH)
+            if row.get("metric") != main_metric or name.lower().startswith("zero-shot"):
+                continue  # the compact table is student/teacher/tfidf only, at each task's main metric
+            diff = _num(row.get("diff_pts"))
+            metric_rows.append([
+                _task_label(task), name, col_label(main_metric), pct(row.get("reference")), pct(row.get("rerun")),
+                f"{diff:+.2f} pts" if diff is not None else DASH,
+            ])  # fmt: skip
+        sel = result.get("selected_run") or {}
+        if not sel:
+            continue
+        if sel.get("same"):
+            selected_sentences.append(
+                f"{_task_label(task)}: the selected run matched on both machines (`{sel.get('reference')}`)."
+            )
+        else:
+            ref_gain = _gain_phrase(sel.get("reference_reason")) or sel.get("reference_reason") or DASH
+            rerun_gain = _gain_phrase(sel.get("rerun_reason")) or sel.get("rerun_reason") or DASH
+            selected_sentences.append(
+                f"{_task_label(task)}: the selected run differed — `{sel.get('reference')}` on the reference "
+                f"machine vs `{sel.get('rerun')}` on the rerun (reference: “{ref_gain}”; rerun: “{rerun_gain}”)."
+            )
+    lines += [*md_table(["Task", "Max abs difference", "All rows within tolerance"], task_rows), ""]
+    if metric_rows:
+        lines += [*md_table(["Task", "Row", "Metric", "Reference", "Rerun", "Diff"], metric_rows), ""]
+    if selected_sentences:
+        lines += [" ".join(selected_sentences), ""]
+    overall = "yes" if reproduction.get("all_within") else "no"
+    lines += [f"All rows within tolerance across every task: {overall}.", ""]
+    return lines
+
+
 def _confidence_comparison_rows(report: Mapping[str, Any], task_label: str) -> list[list[Any]]:
     comparison = (report.get("quality") or {}).get("confidence_comparison") or {}
     rows: list[list[Any]] = []
@@ -671,15 +913,37 @@ def _calibration_section(banking: Mapping[str, Any], invoices: Mapping[str, Any]
             "",
         ]
     for label, report in (("Banking77", banking), ("Invoices", invoices)):
-        row = find_row((report.get("quality") or {}).get("rows") or [], "student", labels="teacher")
+        row = _selected_student_row(report)
         calibration = (row or {}).get("calibration") or {}
-        if calibration.get("ece") is not None and calibration.get("isotonic_ece") is not None:
-            lines += [
-                f"{label} student, ECE on test: {pct(calibration.get('ece'))} raw vs "
-                f"{pct(calibration.get('isotonic_ece'))} after isotonic calibration.",
-                "",
-            ]
+        ece, isotonic_ece = calibration.get("ece"), calibration.get("isotonic_ece")
+        if ece is None or isotonic_ece is None:
+            continue
+        run_id = (report.get("selected_run") or {}).get("run_id") or (row or {}).get("selected_run") or DASH
+        # calibration.ece is the same basis as the quality table's ECE column for this row (see calibration's
+        # own "reference"); isotonic_ece shares one "reference" key with it in this schema, but the check
+        # below still says so explicitly if a future report ever gives the isotonic figure its own basis.
+        reference = calibration.get("reference") or "teacher"
+        isotonic_reference = calibration.get("isotonic_reference") or reference
+        basis_note = f" (isotonic figure is vs {isotonic_reference})" if isotonic_reference != reference else ""
+        lines += [
+            f"{label} student `{run_id}`, ECE on test vs {reference}: {pct(ece)} raw vs {pct(isotonic_ece)} "
+            f"after isotonic calibration{basis_note}.",
+            "",
+        ]
     return lines
+
+
+def _selected_student_row(report: Mapping[str, Any]) -> Mapping[str, Any] | None:
+    """The quality row for the report's selected run (student, teacher labels) -- not just the first student
+    row, which can be a different base size than the one actually chosen and served (invoices selects 1.5B,
+    but the 0.5B teacher-labels row lists first)."""
+    run_id = (report.get("selected_run") or {}).get("run_id")
+    rows = (report.get("quality") or {}).get("rows") or []
+    if run_id is not None:
+        for row in rows:
+            if row.get("system") == "student" and run_id in (row.get("run_ids") or []):
+                return row
+    return find_row(rows, "student", labels="teacher")
 
 
 def _decision_sentence(decision: Mapping[str, Any]) -> str:
@@ -690,13 +954,14 @@ def _decision_sentence(decision: Mapping[str, Any]) -> str:
     gain_word = "meets" if min_gain is not None and gain >= min_gain else "is below"
     ratio_word = "under" if max_ratio is not None and ratio < max_ratio else "at or above"
     verdict = "the smaller base was kept" if decision.get("choice") == "small" else "the larger base was selected"
-    # Two decimals here (rather than the usual one) so a near-threshold gain such as 0.97 vs a 1.00 minimum
-    # cannot round to the same digits as the threshold it is being compared against.
+    # Two decimals on the gain (rather than the usual one) so a near-threshold gain such as 0.97 vs a 1-point
+    # minimum cannot round to the same digits as the threshold it is being compared against. In points, not
+    # percent: the rule is a difference between two scores, not a share of anything.
     return (
-        f"Rule: use the larger base only if it gains at least {pct(min_gain, 2)} on the validation metric and its "
-        f"p95 latency stays under {plain(max_ratio, 1)}x the smaller model's. Here the gain {gain_word} the "
-        f"{pct(min_gain, 2)} minimum ({pts(gain, 2)}) and the p95 ratio ({plain(ratio, 2)}x) is {ratio_word} the "
-        f"{plain(max_ratio, 1)}x limit, so {verdict}."
+        f"Rule: use the larger base only if it gains at least {min_gain_points(min_gain)} on the validation "
+        f"metric and its p95 latency stays under {plain(max_ratio, 1)}x the smaller model's. Here the gain "
+        f"{gain_word} the {min_gain_points(min_gain)} minimum ({points(gain, 2)}) and the p95 ratio "
+        f"({plain(ratio, 2)}x) is {ratio_word} the {plain(max_ratio, 1)}x limit, so {verdict}."
     )
 
 
@@ -738,16 +1003,21 @@ def _lr_ablation_bullet(ablation: Mapping[str, Any] | None) -> str | None:
     if not constant or not warm:
         return None
     runs = [r for r in ablation.get("runs") or [] if r.get("lr_schedule") == "constant"]
-    losses = [(r.get("seed"), _num(r.get("best_val_loss"))) for r in runs]
-    losses = [(seed, loss) for seed, loss in losses if loss is not None]
-    diverged_seed = None
-    if len(losses) >= 3:
-        ordered = sorted(losses, key=lambda item: item[1])
-        rest = [loss for _, loss in ordered[:-1]]
-        if ordered[-1][1] > 2 * max(rest or [0.0]):
-            diverged_seed = ordered[-1][0]
-    divergence = f" one seed (seed {diverged_seed}) diverged to a much higher training loss than the other two;" \
-        if diverged_seed is not None else ""  # fmt: skip
+    # The outlier is named by its own validation agreement (a value runs[] states directly), not by an inferred
+    # claim about training loss the seed's own record does not make in those terms.
+    agreements = [(r.get("seed"), _num(r.get("valid_agreement"))) for r in runs]
+    agreements = [(seed, agreement) for seed, agreement in agreements if agreement is not None]
+    outlier: tuple[Any, float] | None = None
+    if len(agreements) >= 3:
+        ordered = sorted(agreements, key=lambda item: item[1])
+        rest = [agreement for _, agreement in ordered[1:]]
+        if rest and ordered[0][1] < 0.5 * min(rest):
+            outlier = ordered[0]
+    divergence = (
+        f" seed {outlier[0]} reached only {pct(outlier[1])} validation agreement, well below the other two;"
+        if outlier is not None
+        else ""
+    )
     return (
         f"Learning-rate schedule ({ablation.get('profile', 'quick')} profile, {integer(len(runs))}-seed Banking77 "
         f"validation): a constant learning rate reached {pct(constant.get('valid_agreement_mean'))} ± "
@@ -769,8 +1039,8 @@ def _size_ceiling_bullet(banking: Mapping[str, Any]) -> str | None:
     verdict = "below" if min_gain is not None and gain < min_gain else "at or above"
     kept = "kept the 0.5B base" if decision.get("choice") == "small" else "chose the 1.5B base"
     return (
-        f"The bigger Banking77 student (1.5B vs 0.5B, teacher labels) gained {pts(gain, 2)} on validation "
-        f"agreement, {verdict} the {pct(min_gain, 2)} minimum the base-model rule requires, for "
+        f"The bigger Banking77 student (1.5B vs 0.5B, teacher labels) gained {points(gain, 2)} on validation "
+        f"agreement, {verdict} the {min_gain_points(min_gain)} minimum the base-model rule requires, for "
         f"{plain(ratio, 2)}x the p95 latency (limit {plain(max_ratio, 1)}x); the rule {kept}."
     )
 
@@ -833,24 +1103,86 @@ def _prompt_variant_bullet(base: Mapping[str, Any] | None, variants: Mapping[str
     )
 
 
+#: AUROC (0-1 scale) and ECE (fraction) differences at or under these are called "about equal" in prose below,
+#: rather than crediting either side with a real advantage on a gap that is noise-sized.
+AUROC_TIE = 0.01
+ECE_TIE = 0.003
+
+
+def _direction_note(
+    primary: Any, alternative: Any, fmt: Callable[[Any], str], *, higher_is_better: bool, tie: float
+) -> str:
+    """``0.846 vs 0.858 (higher for the alternative)`` -- the comparison word is derived only from comparing the
+    two numbers (against a small tie tolerance in the metric's own units), never assumed from which definition
+    was actually chosen; that is what let the old text claim "did not improve" on a task where it did."""
+    p, a = _num(primary), _num(alternative)
+    text = f"{fmt(primary)} vs {fmt(alternative)}"
+    if p is None or a is None:
+        return text
+    if abs(p - a) <= tie:
+        return f"{text} (about equal)"
+    a_is_better = (a > p) if higher_is_better else (a < p)
+    word = "higher" if higher_is_better else "lower"
+    return f"{text} ({word} for the {'alternative' if a_is_better else 'primary'})"
+
+
+def _auroc_note(primary: Any, alternative: Any) -> str:
+    return _direction_note(primary, alternative, plain, higher_is_better=True, tie=AUROC_TIE)
+
+
+def _ece_note(primary: Any, alternative: Any) -> str:
+    return _direction_note(primary, alternative, pct, higher_is_better=False, tie=ECE_TIE)
+
+
+def _ece_ratio_phrase(primary: Any, alternative: Any) -> str:
+    """``2.8% vs 9.2%, about 3.3x lower for the primary`` -- the ratio that motivated keeping the primary
+    definition on validation, computed from the two values rather than asserted as "about three times" from
+    memory."""
+    p, a = _num(primary), _num(alternative)
+    text = f"{pct(primary)} vs {pct(alternative)}"
+    if p is None or a is None or p <= 0 or a <= p:
+        return text
+    return f"{text}, about {a / p:.1f}x lower for the primary"
+
+
 def _confidence_bullet(banking: Mapping[str, Any], invoices: Mapping[str, Any]) -> str | None:
-    bits = []
+    valid_bits, test_bits = [], []
     for label, report in (("Banking77", banking), ("Invoices", invoices)):
-        comparison = ((report.get("quality") or {}).get("confidence_comparison") or {}).get("test") or {}
-        if comparison.get("chosen") != "primary" or not comparison.get("alternative"):
+        comparison = (report.get("quality") or {}).get("confidence_comparison") or {}
+        valid, test = comparison.get("valid") or {}, comparison.get("test") or {}
+        if valid.get("chosen") != "primary" or not valid.get("alternative") or not test.get("alternative"):
             continue
-        primary, alternative = comparison.get("primary") or {}, comparison["alternative"]
-        bits.append(
-            f"{label}: AUROC {plain(primary.get('auroc_vs_teacher'))} vs {plain(alternative.get('auroc_vs_teacher'))}"
-            f", ECE {pct(primary.get('ece_vs_teacher'))} vs {pct(alternative.get('ece_vs_teacher'))}"
-        )
-    if not bits:
+        v_primary, v_alt = valid.get("primary") or {}, valid["alternative"]
+        t_primary, t_alt = test.get("primary") or {}, test["alternative"]
+        v_auroc = _auroc_note(v_primary.get("auroc_vs_teacher"), v_alt.get("auroc_vs_teacher"))
+        v_ece = _ece_ratio_phrase(v_primary.get("ece_vs_teacher"), v_alt.get("ece_vs_teacher"))
+        valid_bits.append(f"{label} AUROC {v_auroc}, ECE {v_ece}")
+        t_auroc = _auroc_note(t_primary.get("auroc_vs_teacher"), t_alt.get("auroc_vs_teacher"))
+        t_ece = _ece_note(t_primary.get("ece_vs_teacher"), t_alt.get("ece_vs_teacher"))
+        test_bits.append(f"{label} AUROC {t_auroc}, ECE {t_ece}")
+    if not valid_bits:
         return None
     return (
-        "The alternative confidence definition (free greedy generation, mean per-token log-probability) did not "
-        "improve on the primary (trie-constrained token-probability product) on test — "
-        + "; ".join(bits)
-        + " — so the primary definition was kept."
+        "Two confidence definitions were compared on validation, before either was used at test time: "
+        + "; ".join(valid_bits)
+        + "; so the primary (trie-constrained token-probability product) was kept over the alternative (free "
+        "greedy generation, mean per-token log-probability). Reported honestly, on test: " + "; ".join(test_bits) + "."
+    )
+
+
+def _threshold_transfer_bullet(label: str, report: Mapping[str, Any], group_noun: str) -> str | None:
+    """Only when the validation-chosen threshold missed the target on test: the numbers that show it did not
+    transfer, so this never claims a miss the report does not have."""
+    op = report.get("operating_point") or {}
+    if op.get("target_met_on_test") is not False:
+        return None
+    quality, rates = op.get("quality") or {}, op.get("escalation_rate") or {}
+    metric_label, reference = col_label(str(op.get("metric") or "")), op.get("reference") or "teacher"
+    return (
+        f"{label}: the threshold chosen on the validation {group_noun} did not transfer to the unseen test "
+        f"{group_noun} — {metric_label} against the {reference} met the {pct(op.get('target'))} target on "
+        f"validation ({pct(quality.get('valid'))}, {pct(rates.get('valid'))} escalation) but fell to "
+        f"{pct(quality.get('test'))} on test ({pct(rates.get('test'))} escalation)."
     )
 
 
@@ -892,10 +1224,13 @@ def _spend_and_downloads_section(spend: Mapping[str, Any] | None, downloads: Map
 def render_results() -> str:
     banking = load("banking77/report.json")
     invoices = load("invoices/report.json")
+    banking_studio = load_optional("banking77/report_mac_studio.json")
+    invoices_studio = load_optional("invoices/report_mac_studio.json")
     training = load_optional("training.json")
     spend = load_optional("spend.json")
     downloads = load_optional("downloads.json")
     ablation = load_optional("ablations/lr_schedule.json")
+    reproduction = load_optional("reproduction.json")
     bakeoff_banking = load_optional("bakeoff/banking77.json")
     bakeoff_variants = {
         "snake-case labels": load_optional("bakeoff/banking77.labels-snake-case.json"),
@@ -906,9 +1241,10 @@ def render_results() -> str:
     lines += _provenance_paragraph(banking, invoices)
     lines += _quality_section_banking77(banking)
     lines += _quality_section_invoices(invoices)
-    lines += _cost_and_latency_section(banking, invoices)
-    lines += _live_bench_section(banking, invoices)
+    lines += _cost_and_latency_section(banking, invoices, banking_studio, invoices_studio)
+    lines += _live_bench_section(banking, invoices, banking_studio, invoices_studio)
     lines += _training_section(training)
+    lines += _reproducibility_section(reproduction)
     lines += _calibration_section(banking, invoices)
     lines += _base_model_section(banking, invoices)
 
@@ -919,6 +1255,8 @@ def render_results() -> str:
         _label_ceiling_bullet(banking),
         _prompt_variant_bullet(bakeoff_banking, bakeoff_variants),
         _confidence_bullet(banking, invoices),
+        _threshold_transfer_bullet("Banking77", banking, "queries"),
+        _threshold_transfer_bullet("Invoices", invoices, "layouts"),
     ]
     lines += [text for bullet in bullets if bullet for text in (f"- {bullet}", "")]
 
