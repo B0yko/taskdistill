@@ -4,7 +4,7 @@
 numbers.** taskdistill captures the traffic your application already sends, curates it into training data, LoRA
 fine-tunes a 0.5B–1.5B Qwen2.5 student with MLX on Apple Silicon, evaluates it against the original model on held-out
 data, and serves an OpenAI-compatible cascade: the student answers first and hands the request to the original model
-(the teacher) when its calibrated confidence is below a threshold chosen on validation data. Your application changes
+(the teacher) when its confidence is below a threshold chosen on validation data. Your application changes
 only its base URL.
 
 ![taskdistill demo banking77, then a request to the cascade server](docs/demo.svg)
@@ -35,8 +35,8 @@ taskdistill is for the engineers who own such a call. It gives you a reproducibl
 | [distilabel](https://github.com/argilla-io/distilabel) | Pipelines that generate synthetic data and AI feedback and emit datasets. | It neither trains nor serves models. |
 | [LiteLLM](https://github.com/BerriAI/litellm) | Gateway exposing 100+ LLM APIs in the OpenAI format, with routing, cost tracking and logging; fine-tuning passes through to hosted APIs. | It does not build training sets from its logs or distil locally. |
 
-The gap taskdistill fills: one local, open-source pipeline from captured traffic to a calibrated cascade on Apple
-Silicon, with an evaluation report you can reproduce offline. (Statements checked against each project's own site or
+The gap taskdistill fills: one local, open-source pipeline from captured traffic to a cascade with a
+validation-chosen threshold on Apple Silicon, with an evaluation report you can reproduce offline. (Statements checked against each project's own site or
 repository on 2026-09-26.)
 
 ## Quickstart
@@ -54,13 +54,13 @@ Measured quick-profile demos in replay mode, each in a fresh workspace and direc
 
 | Machine | Demo | Cache | Install | Demo | Total | Load average before |
 |---|---|---|---|---|---|---|
-| Apple M5, 24 GB | `banking77` | warm | 12.9 s | 2.4 min | 2.7 min | 1.90/1.98/2.02 |
-| Apple M5, 24 GB | `invoices` | warm | 0.2 s | 2.1 min | 2.1 min | 2.62/2.48/2.23 |
-| Apple M4 Max, 128 GB | `banking77` | warm | 3.1 s | 1.4 min | 1.5 min | 7.43/7.80/8.05 |
-| Apple M4 Max, 128 GB | `invoices` | warm | 0.2 s | 1.1 min | 1.1 min | 12.43/10.15/8.98 |
-| Apple M4 Max, 128 GB | `banking77` | cold | 7.1 s | 1.6 min | 1.7 min | 9.31/9.69/8.89 |
+| MacBook Air, Apple M5, 24 GB | `banking77` | warm | 12.9 s | 2.4 min | 2.7 min | 1.90/1.98/2.02 |
+| MacBook Air, Apple M5, 24 GB | `invoices` | warm | 0.2 s | 2.1 min | 2.1 min | 2.62/2.48/2.23 |
+| Mac Studio, Apple M4 Max, 128 GB | `banking77` | warm | 3.1 s | 1.4 min | 1.5 min | 7.43/7.80/8.05 |
+| Mac Studio, Apple M4 Max, 128 GB | `invoices` | warm | 0.2 s | 1.1 min | 1.1 min | 12.43/10.15/8.98 |
+| Mac Studio, Apple M4 Max, 128 GB | `banking77` | cold | 7.1 s | 1.6 min | 1.7 min | 9.31/9.69/8.89 |
 
-The cold run (empty `uv` cache and Hugging Face cache on the Apple M4 Max, 128 GB) took 1.7 min: 7.1 s to install and 1.6 min for the demo, including the 0.29 GB base-model download. Every measured run finished in under five minutes; slower Macs and slower connections will take longer.
+The cold run (empty `uv` cache and Hugging Face cache on the Mac Studio, Apple M4 Max, 128 GB) took 1.7 min: 7.1 s to install and 1.6 min for the demo, including the 0.29 GB base-model download. Every measured run finished in under five minutes; slower Macs and slower connections will take longer.
 <!-- /sync:quickstart-timing -->
 
 The demo runs the whole pipeline on [Banking77](#data-and-licences) and leaves a trained student, a report in
@@ -76,8 +76,11 @@ curl -s -D - http://127.0.0.1:8000/v1/chat/completions -H 'Content-Type: applica
 
 The response is a standard `chat.completion`; the `x-taskdistill-route` header says whether the student or the teacher
 answered and `x-taskdistill-confidence` carries the student's confidence. `taskdistill demo invoices` does the same for
-JSON extraction on synthetic invoices. Use `--profile full` for the configuration behind the numbers below (it takes
-tens of minutes to hours on a laptop).
+JSON extraction on synthetic invoices. Both demos use the `quick` profile, sized to finish in a few minutes:
+Banking77 trains on 2,000 examples (300 validation, 500 test, 200 iterations) and invoices on 120 documents (24
+validation, 36 test, 6 per layout, 30 iterations), cut down from 400/60/100 so the demo stays within the time
+budget. Use `--profile full` for the configuration behind the numbers below (it takes tens of minutes to hours on a
+laptop).
 
 ## How it works
 
@@ -187,7 +190,16 @@ Say your application classifies support tickets with a paid API model.
 <!-- sync:results -->
 ## Results
 
-Numbers below come from `scripts/reproduce.sh` (full profile, recorded teacher outputs) on 2026-09-27 on Mac17,4, Apple M5, 24 GB, macOS 26.6.2, plus one extra zero-shot evaluation (the invoices table also shows the 1.5B zero-shot base); teacher outputs were recorded on 2026-09-26. The test splits were scored 8 times (Banking77) and 9 times (invoices), each time by an evaluation shown in these tables; no choice used them: every choice (base model, seed, threshold, isotonic calibration) was made on the validation split alone. Figures marked “recorded” below (the teacher and cascade rows) replay the teacher outputs captured then, not a live call. The live bench and latency numbers are dated measurements and are not expected to reproduce exactly on different hardware or under different load. Unless noted otherwise, every score has a 95% paired bootstrap interval in brackets (1,000 resamples).
+Numbers below come from `scripts/reproduce.sh` (full profile, recorded teacher outputs) on 2026-09-27 on a MacBook Air, Apple M5, 24 GB (Mac17,4), macOS 26.6.2, plus one extra zero-shot evaluation (the invoices table also shows the 1.5B zero-shot base); teacher outputs were recorded on 2026-09-26. The test splits were scored 8 times (Banking77) and 9 times (invoices), each time by an evaluation shown in these tables; no choice used them: every choice (base model, seed, threshold, isotonic calibration) was made on the validation split alone. Figures marked “recorded” below (the teacher and cascade rows) replay the teacher outputs captured then, not a live call. The live bench and latency numbers are dated measurements and are not expected to reproduce exactly on different hardware or under different load. Unless noted otherwise, every score has a 95% paired bootstrap interval in brackets (1,000 resamples).
+
+Two machines were used. Quality, calibration and training numbers come from the MacBook Air, Apple M5, 24 GB that trained the students; it is fanless and shared with other work. Cost, latency, the live bench and the cross-machine reproduction come from a Mac Studio, Apple M4 Max, 128 GB, used only for those runs. Each table names its machine.
+
+**Bottom line.** Each cascade's threshold was chosen on validation; on test:
+
+- **Banking77.** Target held on test: yes — Agreement against the teacher was 97.6% on test (target 97.0%) at a 23.7% escalation rate, close to the 97.1% on validation at 23.4%.
+- **Invoices.** Target held on test: no — Agreement against the teacher met the 97.0% target on validation (98.5% at 0.0% escalation) but fell to 94.1% on test (1.7% escalation).
+
+Metrics: **agreement** is how often a system gives the teacher's answer (for invoices, field micro-F1 against the teacher's JSON); **accuracy** and **macro-F1** (F1 averaged over the 77 intents, each counted equally) are against the gold labels; **ECE** (expected calibration error, lower is better) is the average gap between the student's stated confidence and how often it is right; **AUROC** (0.5 = chance, 1.0 = perfect) is how well that confidence separates right answers from wrong ones. For invoices, **JSON validity** is the share of outputs that parse as a JSON object, **field micro-F1** and **field EM** (exact match) score the 8 fields against the gold, and **Doc EM** is the share of documents with all 8 fields right.
 
 ### Banking77 (77 intents)
 
@@ -258,7 +270,8 @@ Template-cluster bootstrap over 6 groups (one per layout): 95% intervals.
 | student qwen2.5-1.5b (gold labels) | [87.3, 99.0] | [83.2, 98.8] | [77.8, 98.3] | [47.0, 94.7] | [82.1, 98.8] | [4.1, 28.7] | [0.871, 0.991] |
 | cascade (qwen2.5-1.5b-full-s13, t = 0.1524) | [100.0, 100.0] | [88.3, 98.7] | [89.1, 98.7] | [41.0, 89.8] | [86.7, 98.7] | — | — |
 
-Per-template scores:
+<details>
+<summary>Per-template scores (student, teacher, cascade)</summary>
 
 student:
 
@@ -292,6 +305,8 @@ cascade:
 | layout-13 | 100 | 100.0% | 99.3% | 99.4% | 95.0% | 99.3% |
 | layout-14 | 100 | 100.0% | 79.5% | 80.9% | 4.0% | 76.2% |
 | layout-15 | 100 | 100.0% | 94.7% | 95.0% | 61.0% | 94.7% |
+
+</details>
 
 <details>
 <summary>Per-field exact match</summary>
@@ -384,7 +399,7 @@ Energy assumptions: local cost = 20 W x wall time x $0.3/kWh; hardware amortisat
 
 **Banking77**
 
-Measured on Mac16,9, Apple M4 Max, 128 GB, macOS 26.5.2, 2026-09-27:
+Measured on a Mac Studio, Apple M4 Max, 128 GB (Mac16,9), macOS 26.5.2, 2026-09-27:
 
 | System | $/1k recorded | $/1k list price | p50 ms | p95 ms | Source |
 |---|---|---|---|---|---|
@@ -398,7 +413,7 @@ Break-even at 17,419 requests at the recorded teacher cost, 1,762 requests at th
 
 **Invoices**
 
-Measured on Mac16,9, Apple M4 Max, 128 GB, macOS 26.5.2, 2026-09-27:
+Measured on a Mac Studio, Apple M4 Max, 128 GB (Mac16,9), macOS 26.5.2, 2026-09-27:
 
 | System | $/1k recorded | $/1k list price | p50 ms | p95 ms | Source |
 |---|---|---|---|---|---|
@@ -414,7 +429,7 @@ The Why section above states the teacher answered in about 594 ms at p50 and 1,2
 
 ### Live bench cross-check
 
-**Banking77** (measured on Mac16,9, Apple M4 Max, 128 GB, macOS 26.5.2, 2026-09-27)
+**Banking77** (measured on a Mac Studio, Apple M4 Max, 128 GB (Mac16,9), macOS 26.5.2, 2026-09-27)
 
 | Mode | Run | Date | n | p50 ms | p95 ms | Escalated | Spend | Load average |
 |---|---|---|---|---|---|---|---|---|
@@ -423,7 +438,7 @@ The Why section above states the teacher answered in about 594 ms at p50 and 1,2
 
 Composed (from the test split) vs measured: p50 21.5 vs 31.3 ms, p95 854 vs 815 ms.
 
-**Invoices** (measured on Mac16,9, Apple M4 Max, 128 GB, macOS 26.5.2, 2026-09-27)
+**Invoices** (measured on a Mac Studio, Apple M4 Max, 128 GB (Mac16,9), macOS 26.5.2, 2026-09-27)
 
 | Mode | Run | Date | n | p50 ms | p95 ms | Escalated | Spend | Load average |
 |---|---|---|---|---|---|---|---|---|
@@ -432,7 +447,7 @@ Composed (from the test split) vs measured: p50 21.5 vs 31.3 ms, p95 854 vs 815 
 
 Composed (from the test split) vs measured: p50 442 vs 445 ms, p95 499 vs 505 ms.
 
-### Training on the M5
+### Training on the MacBook Air
 
 **Banking77**
 
@@ -454,7 +469,7 @@ Load average recorded alongside these runs ranged up to 4.27. The MacBook Air is
 
 `scripts/reproduce.sh` (full profile) was run again on a second machine and compared with `scripts/compare_reports.py`; tolerance 2.0 points on each test-split metric.
 
-Reference: Mac17,4, Apple M5, 24 GB, macOS 26.6.2, 2026-09-27. Rerun: Mac16,9, Apple M4 Max, 128 GB, macOS 26.5.2, 2026-09-27.
+Reference: MacBook Air, Apple M5, 24 GB (Mac17,4), macOS 26.6.2, 2026-09-27. Rerun: Mac Studio, Apple M4 Max, 128 GB (Mac16,9), macOS 26.5.2, 2026-09-27.
 
 | Task | Max abs difference | All rows within tolerance |
 |---|---|---|
@@ -519,9 +534,11 @@ Rule: use the larger base only if it gains at least 1 point on the validation me
 
 Rule: use the larger base only if it gains at least 1 point on the validation metric and its p95 latency stays under 3.0x the smaller model's. Here the gain meets the 1 point minimum (+3.79 points) and the p95 ratio (1.79x) is under the 3.0x limit, so the larger base was selected.
 
+The rule compares point estimates on the validation split (the best seed of each base); no interval is computed for this decision, so a gain close to the minimum can go either way on a rerun (see Reproducibility above).
+
 ### What didn't work
 
-- Learning-rate schedule at the spec's peak rate (quick profile, 200 iterations, 3 seeds, Banking77): on the Apple M5 a constant rate reached 32.1% ± 31.8% mean validation agreement with the teacher and linear warm-up + cosine decay 68.9% ± 8.3%, with 1 and 0 of 3 seeds diverging (agreement below 10%); on the Apple M4 Max a constant rate reached 23.3% ± 38.0% mean validation agreement with the teacher and linear warm-up + cosine decay 33.9% ± 32.9%, with 2 and 1 of 3 seeds diverging (agreement below 10%). Warm-up + cosine is the default and did better on average, but it does not make short runs at this peak rate reliable. In the full profile, Banking77 converged on every seed; on invoices, the best validation checkpoint of 1 of 3 on the Apple M5 and 1 of 3 on the Apple M4 Max 0.5B seeds came at or before the end of warm-up, so those students stopped early.
+- Learning-rate schedule at the spec's peak rate (quick profile, 200 iterations, 3 seeds, Banking77): on the MacBook Air (Apple M5) a constant rate reached 32.1% ± 31.8% mean validation agreement with the teacher and linear warm-up + cosine decay 68.9% ± 8.3%, with 1 and 0 of 3 seeds diverging (agreement below 10%); on the Mac Studio (Apple M4 Max) a constant rate reached 23.3% ± 38.0% mean validation agreement with the teacher and linear warm-up + cosine decay 33.9% ± 32.9%, with 2 and 1 of 3 seeds diverging (agreement below 10%). Warm-up + cosine is the default and did better on average, but it does not make short runs at this peak rate reliable. In the full profile, Banking77 converged on every seed; on invoices, the best validation checkpoint of 1 of 3 on the MacBook Air (Apple M5) and 1 of 3 on the Mac Studio (Apple M4 Max) 0.5B seeds came at or before the end of warm-up, so those students stopped early.
 
 - The bigger Banking77 student (1.5B vs 0.5B, teacher labels) gained +0.97 points on validation agreement, below the 1 point minimum the base-model rule requires, for 2.18x the p95 latency (limit 3.0x); the rule kept the 0.5B base.
 
@@ -607,8 +624,8 @@ workspace: store, response cache, ledger, curated data and runs; default `./.tas
 
 **Spend control.** Every command that can call the teacher takes `--max-usd` (a cap for that run) and `--yes`. Before
 each call the ledger reserves the worst case (UTF-8 bytes of the messages plus 16 per message as prompt tokens, plus
-`max_tokens` of completion) and settles it with the `usage.cost` the API returns, so concurrent calls can never cross a
-cap. Batches first run a 50-request sample and need `--yes` when the projection exceeds $0.50. `taskdistill budget`
+`max_tokens` of completion) and settles it with the `usage.cost` the API returns, or with the token counts times the
+pricing snapshot when the response has no cost, so concurrent calls can never cross a cap. Batches first run a 50-request sample and need `--yes` when the projection exceeds $0.50. `taskdistill budget`
 prints the spend by task and phase.
 
 ## Limitations
@@ -634,12 +651,14 @@ prints the spend by task and phase.
 - **Cost figures are estimates where they are not measured.** Local cost is an energy estimate (20 W at $0.30/kWh by
   default, both configurable), not a power measurement. With an inexpensive teacher whose provider caches the shared
   prompt, the money saved per request is small; the main gains are latency and keeping inputs on the machine.
-- **Latency numbers are dated measurements** on a fanless MacBook Air that throttles under sustained load and shares
-  the machine with other work; the load average is recorded next to every timing, and live numbers are not expected
-  to reproduce exactly.
-- **Adapters are merged into the 4-bit base in memory** for evaluation and serving (about 1.7 times faster). The
-  re-quantisation shifts confidences slightly, which is why the threshold is chosen on the same merged model that
-  serves.
+- **Latency numbers are dated measurements from two machines**, and each table names its machine. Training and the
+  in-process student latency ran on a fanless MacBook Air (Apple M5, 24 GB) that throttles under sustained load and
+  is shared with other work; the cost and latency tables, the live bench and the break-even volumes come from a Mac
+  Studio (Apple M4 Max, 128 GB) used only for those runs. The load average is recorded next to every timing, and live
+  numbers are not expected to reproduce exactly on other hardware or under other load.
+- **Adapters are merged into the 4-bit base in memory** for evaluation and serving, which avoids the extra LoRA
+  matrix multiplications an unmerged adapter runs at every decoding step. The re-quantisation shifts confidences
+  slightly, which is why the threshold is chosen on the same merged model that serves.
 - **Teacher terms.** Some commercial APIs forbid using their outputs to train other models. Check your provider's terms
   before distilling its outputs; see [ADR 5](docs/adr/0005-teacher-model-choice.md) for the checks made here.
 
@@ -654,7 +673,9 @@ prints the spend by task and phase.
 ## Data and licences
 
 - **taskdistill** is Apache-2.0 (Copyright 2026 Andrii Boiko). The synthetic invoice generator and its output are part
-  of the repository and share that licence.
+  of the repository and share that licence. A 20-document sample of the generated invoices (one per training layout,
+  covering every trait, with their gold fields) is in [`examples/invoices/`](examples/invoices/); `scripts/make_examples.py`
+  regenerates it.
 - **Banking77** (Casanueva et al., 2020) is licensed under
   [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/). The demo downloads the CSVs at runtime from a pinned
   commit of [PolyAI-LDN/task-specific-datasets](https://github.com/PolyAI-LDN/task-specific-datasets/tree/57ec275d8078af65b7731c2a98be812d844a6d6b/banking_data)

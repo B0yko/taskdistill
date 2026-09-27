@@ -16,7 +16,7 @@ target metric (agreement with the teacher) by at least 1 point **and** its stude
 the 0.5B p95. The run is declared in `selected_run.json`; the bundled demo specs keep the 0.5B default for the quick
 profile.
 
-Outcome of the full-profile runs on the MacBook Air M5 (`reports/<task>/report.json`, `selected_run.candidates`):
+Outcome of the full-profile runs on the MacBook Air (Apple M5) (`reports/<task>/report.json`, `selected_run.candidates`):
 
 | Task | 0.5B (best seed) | 1.5B | Gain | p95 ratio | Chosen |
 |---|---|---|---|---|---|
@@ -27,7 +27,7 @@ Outcome of the full-profile runs on the MacBook Air M5 (`reports/<task>/report.j
 
 - The two tasks end up with different students, as intended: the 1.5B base pays for itself on extraction, not on
   intent classification.
-- The Banking77 decision sits on the edge of the rule. The reproduction on a second machine (Apple M4 Max) measured a
+- The Banking77 decision sits on the edge of the rule. The reproduction on a second machine (a Mac Studio, Apple M4 Max) measured a
   +1.26-point gain and chose the 1.5B base; a knife-edge rule should be read together with its measured gain, which
   the report prints next to the decision.
 - p95 comes from the in-process validation predictions of each run, measured on the machine that ran eval; the live

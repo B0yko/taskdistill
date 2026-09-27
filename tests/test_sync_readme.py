@@ -109,7 +109,10 @@ def test_integer_uses_thousands_separator(sync: types.ModuleType) -> None:
 
 def test_hardware_text_matches_report_convention(sync: types.ModuleType) -> None:
     hardware = {"model": "Mac17,4", "cpu": "Apple M5", "memory_gb": 24.0, "os": "macOS 26.6.2"}
-    assert sync.hardware_text(hardware) == "Mac17,4, Apple M5, 24 GB, macOS 26.6.2"
+    assert sync.hardware_text(hardware) == "MacBook Air, Apple M5, 24 GB (Mac17,4), macOS 26.6.2"
+    assert sync.machine_text(hardware) == "MacBook Air, Apple M5, 24 GB"
+    unknown = {**hardware, "model": "Mac99,1"}
+    assert sync.hardware_text(unknown) == "Mac99,1, Apple M5, 24 GB, macOS 26.6.2"
 
 
 # -- teacher-latency (inline block) -----------------------------------------------------------------------
@@ -155,7 +158,7 @@ def test_results_has_every_required_subsection(sync: types.ModuleType) -> None:
         "### Invoices (8-field JSON extraction)",
         "### Cost and latency",
         "### Live bench cross-check",
-        "### Training on the M5",
+        "### Training on the MacBook Air",
         "### Calibration",
         "### Choosing the base model",
         "### What didn't work",
@@ -193,7 +196,7 @@ def test_results_renders_every_zero_shot_row_smallest_base_first(sync: types.Mod
 def test_provenance_paragraph_uses_date_only_and_scoring_counts(sync: types.ModuleType) -> None:
     body = sync.RENDERERS["results"]()
     # The report's "date" is a full ISO timestamp; the paragraph shows only the YYYY-MM-DD prefix.
-    assert "on 2026-09-26 on Mac17,4" in body
+    assert "on 2026-09-26 on a MacBook Air, Apple M5, 24 GB (Mac17,4)" in body
     assert "2026-09-26T" not in body
     # test_access.count is 8 for Banking77 and 1 for invoices in the fixtures (singular "time").
     assert "scored 8 times (Banking77) and 1 time (invoices)" in body
@@ -391,8 +394,8 @@ def test_reproducibility_section_renders_when_present(
     body = module.RENDERERS["results"]()
     section = body.split("### Reproducibility on a second machine")[1].split("### Calibration")[0]
 
-    assert "Reference: Mac17,4, Apple M5, 24 GB, macOS 26.6.2, 2026-09-27." in section
-    assert "Rerun: Mac16,9, Apple M4 Max, 64 GB, macOS 26.6.2, 2026-09-28." in section
+    assert "Reference: MacBook Air, Apple M5, 24 GB (Mac17,4), macOS 26.6.2, 2026-09-27." in section
+    assert "Rerun: Mac Studio, Apple M4 Max, 64 GB (Mac16,9), macOS 26.6.2, 2026-09-28." in section
     assert "tolerance 2.0 points" in section
     # Per task: the max |difference| and whether every row stayed within tolerance.
     assert "| Banking77 | 0.78 pts | yes |" in section
@@ -417,7 +420,7 @@ def test_cost_latency_and_live_bench_keep_current_behaviour_without_mac_studio(s
     """The shared fixtures have no report_mac_studio.json for either task: the cost/latency table stays the
     MacBook Air's own, and the live bench stays "not measured yet" (both reports' live_bench is null)."""
     body = sync.RENDERERS["results"]()
-    assert "Measured on Mac16,9" not in body
+    assert "Mac16,9" not in body
     assert "in-process eval, not through the server" not in body  # only the mac-studio comparison line says this
     assert "**Banking77**: not measured yet." in body
     assert "**Invoices**: not measured yet." in body
@@ -431,7 +434,7 @@ def test_cost_latency_and_live_bench_use_mac_studio_when_present(
     body = module.RENDERERS["results"]()
 
     cost_section = body.split("### Cost and latency")[1].split("### Live bench cross-check")[0]
-    assert "Measured on Mac16,9, Apple M4 Max, 64 GB, macOS 26.6.2, 2026-09-28:" in cost_section
+    assert "Measured on a Mac Studio, Apple M4 Max, 64 GB (Mac16,9), macOS 26.6.2, 2026-09-28:" in cost_section
     assert "bench against `serve --threshold 0`" in cost_section
     # The MacBook Air's in-process eval latency is still shown, flagged, for comparison.
     assert (
@@ -442,8 +445,9 @@ def test_cost_latency_and_live_bench_use_mac_studio_when_present(
     assert "Break-even at 17,420 requests" in cost_section
     assert "18,565 requests" not in cost_section
 
-    bench_section = body.split("### Live bench cross-check")[1].split("### Training on the M5")[0]
-    assert "**Banking77** (measured on Mac16,9, Apple M4 Max, 64 GB, macOS 26.6.2, 2026-09-28)" in bench_section
+    bench_section = body.split("### Live bench cross-check")[1].split("### Training on the MacBook Air")[0]
+    expected = "**Banking77** (measured on a Mac Studio, Apple M4 Max, 64 GB (Mac16,9), macOS 26.6.2, 2026-09-28)"
+    assert expected in bench_section
     assert "qwen2.5-0.5b-full-s13" in bench_section  # the run id column
     assert "0.62/0.58/0.55" in bench_section  # load average, read from machine_state, not a top-level field
     assert "24.1%" in bench_section  # cascade escalation rate measured live
@@ -525,3 +529,18 @@ def test_load_optional_reads_an_existing_file(sync: types.ModuleType) -> None:
     data = sync.load_optional("training.json")
     assert data is not None
     assert data["table"][0]["task"] == "banking77"
+
+
+def test_results_open_with_the_bottom_line_and_metric_definitions(sync: types.ModuleType) -> None:
+    body = sync.RENDERERS["results"]()
+    head = body.split("### Banking77")[0]
+    assert "**Bottom line.**" in head
+    assert "- **Banking77.** Target held on test:" in head
+    assert "**ECE** (expected calibration error" in head
+    assert "Two machines were used" not in head  # only with a second machine's report
+
+
+def test_per_template_scores_are_collapsed(sync: types.ModuleType) -> None:
+    body = sync.RENDERERS["results"]()
+    block = body.split("<summary>Per-template scores (student, teacher, cascade)</summary>")[1].split("</details>")[0]
+    assert "| Template |" in block

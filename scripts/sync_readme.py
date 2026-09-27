@@ -168,13 +168,33 @@ def integer(value: Any) -> str:
     return DASH if number is None else f"{number:,.0f}"
 
 
-def hardware_text(hardware: Any) -> str:
-    """``Mac17,4, Apple M5, 24 GB, macOS 26.6.2`` from a hardware-info dict."""
+#: Product names for the model identifiers of the machines behind the committed reports; an identifier not
+#: listed here is shown as it is.
+PRODUCT_NAMES = {"Mac17,4": "MacBook Air", "Mac16,9": "Mac Studio"}
+
+
+def product_name(hardware: Any) -> str | None:
+    model = hardware.get("model") if isinstance(hardware, Mapping) else None
+    return PRODUCT_NAMES.get(str(model)) if model else None
+
+
+def machine_text(hardware: Any) -> str:
+    """``MacBook Air, Apple M5, 24 GB`` from a hardware-info dict (the identifier when the product is unknown)."""
     if not isinstance(hardware, Mapping):
         return DASH
     memory = _num(hardware.get("memory_gb"))
-    parts = [hardware.get("model"), hardware.get("cpu"), f"{memory:g} GB" if memory else None, hardware.get("os")]
+    parts = [product_name(hardware) or hardware.get("model"), hardware.get("cpu"), f"{memory:g} GB" if memory else None]
     return ", ".join(str(part) for part in parts if part) or DASH
+
+
+def hardware_text(hardware: Any) -> str:
+    """``MacBook Air, Apple M5, 24 GB (Mac17,4), macOS 26.6.2`` from a hardware-info dict."""
+    if not isinstance(hardware, Mapping):
+        return DASH
+    text = machine_text(hardware)
+    if product_name(hardware):
+        text += f" ({hardware.get('model')})"
+    return ", ".join(str(part) for part in (text, hardware.get("os")) if part and part != DASH) or DASH
 
 
 def date_only(value: Any) -> str:
@@ -428,9 +448,7 @@ def render_quickstart_timing() -> str:
         return "Timing not measured yet."
 
     def machine(run: Mapping[str, Any]) -> str:
-        hardware = run.get("hardware") or timing.get("hardware") or {}
-        memory = _num(hardware.get("memory_gb"))
-        return f"{hardware.get('cpu') or DASH}, {memory:g} GB" if memory else str(hardware.get("cpu") or DASH)
+        return machine_text(run.get("hardware") or timing.get("hardware") or {})
 
     def load_before(run: Mapping[str, Any]) -> str:
         state = run.get("state_before") or {}
@@ -485,6 +503,44 @@ def _extra_zero_shot_phrase(task_label: str, report: Mapping[str, Any]) -> str |
     return f"the {task_label.lower()} table also shows the {sizes} zero-shot base{plural}"
 
 
+def _machines_paragraph(banking: Mapping[str, Any], studio: Mapping[str, Any] | None) -> list[str]:
+    """Which machine produced which numbers, stated once before any table uses the second one."""
+    if not studio:
+        return []
+    trainer = machine_text(banking.get("hardware"))
+    return [
+        f"Two machines were used. Quality, calibration and training numbers come from the {trainer} "
+        "that trained the students; it is fanless and shared with other work. Cost, latency, the live bench and the "
+        f"cross-machine reproduction come from a {machine_text(studio.get('hardware'))}, used only for those runs. "
+        "Each table names its machine.",
+        "",
+    ]
+
+
+def _bottom_line(banking: Mapping[str, Any], invoices: Mapping[str, Any]) -> list[str]:
+    """The two headline outcomes (did the cascade hold its target on test), before the tables that show them."""
+    items = []
+    for label, report in (("Banking77", banking), ("Invoices", invoices)):
+        op = report.get("operating_point") or {}
+        outcome = _operating_point_outcome(op, col_label(str(op.get("metric") or "")), op.get("reference") or "teacher")
+        if outcome:
+            items.append(f"- **{label}.** {outcome}")
+    if not items:
+        return []
+    return ["**Bottom line.** Each cascade's threshold was chosen on validation; on test:", "", *items, ""]
+
+
+METRIC_DEFINITIONS = (
+    "Metrics: **agreement** is how often a system gives the teacher's answer (for invoices, field micro-F1 against "
+    "the teacher's JSON); **accuracy** and **macro-F1** (F1 averaged over the 77 intents, each counted equally) are "
+    "against the gold labels; **ECE** (expected calibration error, lower is better) is the average gap between the "
+    "student's stated confidence and how often it is right; **AUROC** (0.5 = chance, 1.0 = perfect) is how well that "
+    "confidence separates right answers from wrong ones. For invoices, **JSON validity** is the share of outputs "
+    "that parse as a JSON object, **field micro-F1** and **field EM** (exact match) score the 8 fields against the "
+    "gold, and **Doc EM** is the share of documents with all 8 fields right."
+)
+
+
 def _provenance_paragraph(banking: Mapping[str, Any], invoices: Mapping[str, Any]) -> list[str]:
     hardware = hardware_text(banking.get("hardware"))
     report_date = date_only(banking.get("date"))
@@ -501,7 +557,7 @@ def _provenance_paragraph(banking: Mapping[str, Any], invoices: Mapping[str, Any
     invoices_times = times_text((invoices.get("test_access") or {}).get("count"))
     para = (
         f"Numbers below come from `scripts/reproduce.sh` (full profile, recorded teacher outputs) on {report_date} "
-        f"on {hardware}{extra_text}; teacher outputs were recorded on {recorded_date}. The test splits were scored "
+        f"on a {hardware}{extra_text}; teacher outputs were recorded on {recorded_date}. The test splits were scored "
         f"{banking_times} (Banking77) and {invoices_times} (invoices), each time by an evaluation shown in these "
         "tables; no choice used them: every choice (base model, seed, threshold, isotonic calibration) was made on "
         "the validation split alone. Figures marked “recorded” below (the "
@@ -627,7 +683,8 @@ def _quality_section_invoices(report: Mapping[str, Any]) -> list[str]:
         ]
     per_group = quality.get("per_group")
     if isinstance(per_group, Mapping) and per_group:
-        lines += ["Per-template scores:", "", *breakdown_tables(per_group, "Template")]
+        lines += ["<details>", "<summary>Per-template scores (student, teacher, cascade)</summary>", "",
+                  *breakdown_tables(per_group, "Template"), "</details>", ""]  # fmt: skip
     per_field = quality.get("per_field")
     if isinstance(per_field, Mapping) and per_field:
         lines += ["<details>", "<summary>Per-field exact match</summary>", "", *per_field_tables(per_field),
@@ -694,7 +751,7 @@ def _cost_and_latency_section(
         lines += [f"**{label}**", ""]
         if studio:
             lines += [
-                f"Measured on {hardware_text(studio.get('hardware'))}, {date_only(studio.get('date'))}:",
+                f"Measured on a {hardware_text(studio.get('hardware'))}, {date_only(studio.get('date'))}:",
                 "",
                 *_cost_latency_task_table(studio),
                 "",
@@ -740,7 +797,7 @@ def _live_bench_section(
         any_measured = True
         header = f"**{label}**"
         if studio:
-            header += f" (measured on {hardware_text(studio.get('hardware'))}, {date_only(studio.get('date'))})"
+            header += f" (measured on a {hardware_text(studio.get('hardware'))}, {date_only(studio.get('date'))})"
         lines += [header, ""]
         rows = []
         for mode_label, run in (("Student only", student_only), ("Cascade", cascade)):
@@ -778,7 +835,7 @@ def _task_label(task: str) -> str:
 
 
 def _training_section(training: Mapping[str, Any] | None) -> list[str]:
-    lines = ["### Training on the M5", ""]
+    lines = ["### Training on the MacBook Air", ""]
     if not training or not training.get("table"):
         lines += ["Not available yet: `reports/training.json` (run `scripts/collect_reports.py`).", ""]
         return lines
@@ -1014,6 +1071,12 @@ def _base_model_section(banking: Mapping[str, Any], invoices: Mapping[str, Any])
                 lines += [sentence, ""]
         elif selected.get("reason"):
             lines += [f"{selected['reason']}.", ""]
+    lines += [
+        "The rule compares point estimates on the validation split (the best seed of each base); no interval is "
+        "computed for this decision, so a gain close to the minimum can go either way on a rerun (see "
+        "Reproducibility above).",
+        "",
+    ]
     return lines
 
 
@@ -1041,8 +1104,11 @@ def _ablation_summary(ablation: Mapping[str, Any]) -> dict[str, Any] | None:
 
 
 def _cpu_name(report: Mapping[str, Any] | None) -> str:
+    """``MacBook Air (Apple M5)``, or the chip alone when the product is unknown."""
     hardware = (report or {}).get("hardware") or {}
-    return str(hardware.get("cpu") or "second machine")
+    cpu = str(hardware.get("cpu") or "second machine")
+    product = product_name(hardware)
+    return f"{product} ({cpu})" if product else cpu
 
 
 def _early_checkpoints(training: Mapping[str, Any] | None, task: str) -> tuple[int, int]:
@@ -1322,6 +1388,9 @@ def render_results() -> str:
 
     lines: list[str] = ["## Results", ""]
     lines += _provenance_paragraph(banking, invoices)
+    lines += _machines_paragraph(banking, banking_studio)
+    lines += _bottom_line(banking, invoices)
+    lines += [METRIC_DEFINITIONS, ""]
     lines += _quality_section_banking77(banking)
     lines += _quality_section_invoices(invoices)
     lines += _cost_and_latency_section(banking, invoices, banking_studio, invoices_studio)

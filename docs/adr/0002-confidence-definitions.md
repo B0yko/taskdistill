@@ -33,8 +33,8 @@ The definitions were compared on the validation split before either was used on 
 | Invoices | primary (min over fields) | 0.904 | 3.7% |
 | Invoices | alternative (whole-output mean log-prob) | 0.903 | 10.0% |
 
-The two separate right from wrong about equally well, but the primary definitions are three times better
-calibrated, so they drive the cascade. Isotonic calibration, fitted on validation, is reported for calibration only;
+The two separate right from wrong about equally well, but the primary definitions are better calibrated (about 3.3x
+lower ECE on Banking77 and 2.7x on invoices), so they drive the cascade. Isotonic calibration, fitted on validation, is reported for calibration only;
 the threshold is chosen on raw confidence.
 
 ## Consequences
