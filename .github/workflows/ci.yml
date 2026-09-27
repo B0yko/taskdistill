@@ -73,7 +73,10 @@ jobs:
       - name: CLI import smoke test
         run: uv run taskdistill --help && uv run python -c "import mlx.core as mx, mlx_lm; print('mlx', mx.__version__)"
       - name: The pinned mlx wheels resolve for macOS 14 (the minimum supported)
-        run: MACOSX_DEPLOYMENT_TARGET=14.0 uv pip compile pyproject.toml --python-platform aarch64-apple-darwin --python-version 3.12 -q -o /dev/null
+        run: |
+          MACOSX_DEPLOYMENT_TARGET=14.0 uv pip compile pyproject.toml --python-platform aarch64-apple-darwin \
+            --python-version 3.12 -q -o "$RUNNER_TEMP/requirements-macos14.txt"
+          grep -E '^mlx(-metal)?==' "$RUNNER_TEMP/requirements-macos14.txt"
       - name: Non-Metal tests
         run: uv run pytest -q -p no:cacheprovider -m "not mlx and not network"
       - name: Try MLX on the CPU device
