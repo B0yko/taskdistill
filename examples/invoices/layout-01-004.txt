@@ -1,0 +1,25 @@
+INVOICE
+
+Halazen Media GmbH
+107 Lumil Avenue
+83142 Braldal
+billing@halazen.test | +1 555-0166
+
+Bill to:
+Faleholm GmbH
+46 Pello Street
+42546 Wexmouth
+
+Invoice No.:    INV-1J0-51047
+Invoice Date:   2026-06-21
+Due Date:       2026-07-21
+PO Number:      PO-12170-T
+
+Description       Qty  Unit price     Amount
+--------------------------------------------
+LED panel lights   20    2.269,25  45.385,00
+
+VAT 23%                            10.438,55
+Total incl. tax                    55.823,55
+
+All amounts in PLN. Thank you for your business.

@@ -659,6 +659,18 @@ def test_sample_docs_cover_both_kinds_and_every_trait(docs: list[InvoiceDoc]) ->
     assert sample_docs() == sample
 
 
+def test_committed_examples_match_the_generator() -> None:
+    """examples/invoices/ is what scripts/make_examples.py writes today (rerun it after changing the generator)."""
+    import importlib.util
+
+    script = Path(__file__).resolve().parent.parent / "scripts" / "make_examples.py"
+    spec = importlib.util.spec_from_file_location("make_examples", script)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    assert module.main(["--check"]) == 0
+
+
 # --------------------------------------------------------------------------------------------------------
 # Dedupe safety and length budget
 # --------------------------------------------------------------------------------------------------------

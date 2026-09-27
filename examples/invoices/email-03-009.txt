@@ -1,0 +1,26 @@
+From: Ari X. <ari@kelorvar.test>
+To: accounts-payable@kelorvar.test
+Subject: Fwd: Invoice 26-ENG-9656
+
+Can you process this, please?
+
+Ari
+
+---------- Forwarded message ---------
+From: Varduorra GmbH <billing@varduorra.test>
+Date: Thu, 31 Dec 2026 08:00
+Subject: Invoice 26-ENG-9656
+To: Ari X. <ari@kelorvar.test>
+
+Hello Ari,
+
+attached is invoice 26-ENG-9656 dated December 28, 2026 for the services provided.
+The invoice total of 15,196.90 USD includes sales tax of 1,125.70 USD (8%).
+We have already received your deposit of 3,647.00 USD, which leaves 11,549.90 USD to pay.
+Please note that 1,965.76 USD from an earlier invoice is still open on your account; it is not included in this invoice.
+Our payment terms are net 90 days.
+Please quote your purchase order ORD/T46464 with your payment.
+
+Many thanks,
+Sam Z.
+Varduorra GmbH

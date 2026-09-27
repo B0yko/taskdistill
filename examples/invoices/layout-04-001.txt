@@ -1,0 +1,23 @@
+Kelarlune GmbH
+49 Rosor Street, 72616 Halstad
+Phone +1 555-0112 - kelarlune@example.com
+
+INVOICE (dates MM/DD/YYYY)
+
+Invoice Number:   SH-2026U-7231
+Invoice Date:     05/08/2026
+Payment Terms:    Net 90
+Payment Due:      08/06/2026
+P.O. Number:      PO6493JD
+
+Sold to: Wexuzen Engineering LLC
+
+Item                    Qty    Rate    Amount
+---------------------------------------------
+Maintenance visit        20  132.50  2,650.00
+Courier delivery          1   23.20     23.20
+Conference room hire      1  585.10    585.10
+Staff training session    6  322.85  1,937.10
+
+VAT 21%:                          €1,091.03
+Invoice Total:                    €6,286.43

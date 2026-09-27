@@ -1,0 +1,15 @@
+Nevenlune Consulting sp. z o.o.         INVOICE
+154 Osta Lane                           Number: MS2912-Q77
+53607 Zelhaven                          Date: 05 Jan 2025
+Tel +1 555-0104                         Customer PO: BST-4258-X0
+nevenlune@example.com
+
+Customer: Pelleholm GmbH, 04124 Teskfield
+
+Steel brackets M8                    2 x     202.60 =      405.20
+Steel brackets M8                    1 x      20.90 =       20.90
+
+TOTAL                                                   PLN 426.10
+Deposit received                                        PLN 247.00
+Balance remaining                                       PLN 179.10
+Previous balance (not included)                       PLN 3,740.90

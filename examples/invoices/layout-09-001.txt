@@ -1,0 +1,20 @@
++--------------------------------------+
+| INVOICE  No. 46903/M25               |
+| Date: 10-Jun-2025                    |
+| Due: 20-Jun-2025                     |
+| Purchase order: PO-55473-M           |
+|                                      |
+| From: Rosordex Components sp. z o.o. |
+| To:   Vardagard LLC                  |
++--------------------------------------+
+
++-----------------------------+-----+--------+--------+
+| Description                 | Qty |   Unit | Amount |
++-----------------------------+-----+--------+--------+
+| Cloud hosting, monthly plan |   1 | 193.50 | 193.50 |
++-----------------------------+-----+--------+--------+
+VAT 8.1%                                      CHF 15.67
+TOTAL                                        CHF 209.17
+Deposit received                             CHF 121.00
+Balance remaining                             CHF 88.17
+Previous balance (not included)            CHF 3,034.51

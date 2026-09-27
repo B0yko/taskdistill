@@ -1,0 +1,26 @@
+RECHNUNG / INVOICE
+
+Keliwyn Components GmbH - 151 Zelil Park - 25255 Fendal
+
+An / To:
+Lumogard Instruments S.A.
+152 Rosu Way
+23792 Rosstad
+
+Rechnungsnummer / Invoice No.:  RE2026/F2267
+Rechnungsdatum / Invoice date:  23.02.2026
+Lieferdatum / Delivery date:    15.02.2026
+Zahlungsbedingungen / Terms:    21 Tage netto / 21 days net
+Bestellnummer / PO number:      BST-6882-C8
+
+Beschreibung / Description  Menge     Preis    Betrag
+-----------------------------------------------------
+Courier delivery                1    108.10    108.10
+Freight and handling            1  1,341.80  1,341.80
+Consulting services             2     10.75     21.50
+
+USt. / VAT 8.1%                            119.18 CHF
+Gesamtbetrag / Total                     1,590.58 CHF
+Währung / Currency: CHF
+
+IBAN: DE89 3704 0044 0532 0130 00

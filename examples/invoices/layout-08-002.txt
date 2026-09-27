@@ -1,0 +1,19 @@
+Nevenzen Ltd - Professional Services
+19 Yoren Lane, 54707 Varnville
+
+SERVICE INVOICE for Faluholm sp. z o.o.
+
+Invoice number:   SUB-CA22703
+Invoice date:     February 16, 2025
+Service period:   February 2025
+Due date:         March 3, 2025
+Client PO:        1405YH00
+
+Work performed:
+  Project management        5 h @ 914,15 = 4.570,75
+
+VAT 23%:                          PLN 1.051,27
+Invoice total:                    PLN 5.622,02
+Deposit received:                 PLN 2.023,00
+Balance remaining:                PLN 3.599,02
+(amounts in PLN)

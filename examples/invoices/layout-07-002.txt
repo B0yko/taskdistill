@@ -1,0 +1,26 @@
+# document export
+[document]
+type = invoice
+number = 25-FAC-5978
+daet = 2025-08-01
+due_date = 2025-09-15
+purchase_order = ORD/E29172
+
+[seller]
+name = Ostendex Components Ltd
+email = billing@ostendex.test
+
+[buyer]
+name = Halenium GmbH
+
+[amounts]
+currency = CHF
+tax = 887.07
+tax_rate = 8.1%
+gross_total = 11838.57
+prepaid = 3196.00
+open_amount = 8642.57
+
+[lines]
+1 = On-site support visit; 10; 809.45
+2 = Catering service; 10; 285.70

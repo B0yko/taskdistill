@@ -33,3 +33,4 @@ First release.
   invoices`), with a manifest check and a hard error on a miss.
 - Reports, ADRs and the scripts that regenerate every README number (`scripts/reproduce.sh`,
   `scripts/sync_readme.py`).
+- A 20-document sample of the synthetic invoices under `examples/invoices/` (`scripts/make_examples.py`).
