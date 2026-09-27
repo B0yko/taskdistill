@@ -1,0 +1,257 @@
+{
+  "ablation": "learning-rate schedule (peak 1e-4, LoRA rank 16, scale 20, all layers, batch 8)",
+  "task": "banking77",
+  "profile": "quick",
+  "split": "valid",
+  "seeds": [
+    13,
+    14,
+    15
+  ],
+  "date": "2026-09-27T02:39:22+00:00",
+  "hardware": {
+    "model": "Mac16,9",
+    "cpu": "Apple M4 Max",
+    "memory_gb": 128.0,
+    "os": "macOS 26.5.2"
+  },
+  "command": "uv run python scripts/ablation_lr_schedule.py",
+  "runs": [
+    {
+      "run_id": "qwen2.5-0.5b-quick-s13-constant",
+      "lr_schedule": "constant",
+      "seed": 13,
+      "iterations": 200,
+      "warmup_iterations": 0,
+      "best_val_loss": 2.912936210632324,
+      "val_loss_curve": [
+        [
+          0,
+          4.643463611602783
+        ],
+        [
+          49,
+          4.94724702835083
+        ],
+        [
+          99,
+          3.3693151473999023
+        ],
+        [
+          149,
+          3.095254421234131
+        ],
+        [
+          199,
+          2.975144624710083
+        ],
+        [
+          200,
+          2.912936210632324
+        ]
+      ],
+      "valid_accuracy": 0.013422818791946308,
+      "valid_agreement": 0.016778523489932886,
+      "n_valid": 298
+    },
+    {
+      "run_id": "qwen2.5-0.5b-quick-s14-constant",
+      "lr_schedule": "constant",
+      "seed": 14,
+      "iterations": 200,
+      "warmup_iterations": 0,
+      "best_val_loss": 3.409761905670166,
+      "val_loss_curve": [
+        [
+          0,
+          4.643463611602783
+        ],
+        [
+          49,
+          5.4824113845825195
+        ],
+        [
+          99,
+          4.215020179748535
+        ],
+        [
+          149,
+          4.049556732177734
+        ],
+        [
+          199,
+          3.409761905670166
+        ],
+        [
+          200,
+          3.4382283687591553
+        ]
+      ],
+      "valid_accuracy": 0.006711409395973154,
+      "valid_agreement": 0.010067114093959731,
+      "n_valid": 298
+    },
+    {
+      "run_id": "qwen2.5-0.5b-quick-s15-constant",
+      "lr_schedule": "constant",
+      "seed": 15,
+      "iterations": 200,
+      "warmup_iterations": 0,
+      "best_val_loss": 0.2248535007238388,
+      "val_loss_curve": [
+        [
+          0,
+          4.643463611602783
+        ],
+        [
+          49,
+          3.3790791034698486
+        ],
+        [
+          99,
+          0.47036078572273254
+        ],
+        [
+          149,
+          0.35018637776374817
+        ],
+        [
+          199,
+          0.2248535007238388
+        ],
+        [
+          200,
+          0.23203963041305542
+        ]
+      ],
+      "valid_accuracy": 0.5838926174496645,
+      "valid_agreement": 0.6711409395973155,
+      "n_valid": 298
+    },
+    {
+      "run_id": "qwen2.5-0.5b-quick-s13",
+      "lr_schedule": "warmup_cosine",
+      "seed": 13,
+      "iterations": 200,
+      "warmup_iterations": 20,
+      "best_val_loss": 1.4136004447937012,
+      "val_loss_curve": [
+        [
+          0,
+          4.643463611602783
+        ],
+        [
+          49,
+          1.4136004447937012
+        ],
+        [
+          99,
+          6.2469892501831055
+        ],
+        [
+          149,
+          4.926442623138428
+        ],
+        [
+          199,
+          4.768238067626953
+        ],
+        [
+          200,
+          4.7670135498046875
+        ]
+      ],
+      "valid_accuracy": 0.2751677852348993,
+      "valid_agreement": 0.3187919463087248,
+      "n_valid": 298
+    },
+    {
+      "run_id": "qwen2.5-0.5b-quick-s14",
+      "lr_schedule": "warmup_cosine",
+      "seed": 14,
+      "iterations": 200,
+      "warmup_iterations": 20,
+      "best_val_loss": 4.156732559204102,
+      "val_loss_curve": [
+        [
+          0,
+          4.643463611602783
+        ],
+        [
+          49,
+          7.33601713180542
+        ],
+        [
+          99,
+          4.765557765960693
+        ],
+        [
+          149,
+          4.330580234527588
+        ],
+        [
+          199,
+          4.158763885498047
+        ],
+        [
+          200,
+          4.156732559204102
+        ]
+      ],
+      "valid_accuracy": 0.013422818791946308,
+      "valid_agreement": 0.020134228187919462,
+      "n_valid": 298
+    },
+    {
+      "run_id": "qwen2.5-0.5b-quick-s15",
+      "lr_schedule": "warmup_cosine",
+      "seed": 15,
+      "iterations": 200,
+      "warmup_iterations": 20,
+      "best_val_loss": 0.20125243067741394,
+      "val_loss_curve": [
+        [
+          0,
+          4.643463611602783
+        ],
+        [
+          49,
+          7.078226089477539
+        ],
+        [
+          99,
+          0.5403683185577393
+        ],
+        [
+          149,
+          0.3132603168487549
+        ],
+        [
+          199,
+          0.20125243067741394
+        ],
+        [
+          200,
+          0.2018374800682068
+        ]
+      ],
+      "valid_accuracy": 0.5838926174496645,
+      "valid_agreement": 0.6778523489932886,
+      "n_valid": 298
+    }
+  ],
+  "summary": {
+    "constant": {
+      "valid_agreement_mean": 0.23266219239373603,
+      "valid_agreement_std": 0.3797485609794137,
+      "valid_accuracy_mean": 0.20134228187919465,
+      "valid_accuracy_std": 0.3313153032804694
+    },
+    "warmup_cosine": {
+      "valid_agreement_mean": 0.3389261744966443,
+      "valid_agreement_std": 0.32932100140665027,
+      "valid_accuracy_mean": 0.29082774049217003,
+      "valid_accuracy_std": 0.285557128162018
+    }
+  }
+}

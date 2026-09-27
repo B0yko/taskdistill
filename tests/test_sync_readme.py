@@ -316,7 +316,7 @@ def test_results_what_didnt_work_is_data_driven(sync: types.ModuleType) -> None:
     body = sync.RENDERERS["results"]()
     # The learning-rate ablation names the outlier seed's own validation agreement (from runs[]), not an
     # inferred training-loss claim the JSON does not make in those terms.
-    assert "seed 14 reached only 2.0% validation agreement" in body
+    assert "with 1 and 0 of 3 seeds diverging (agreement below 10%)" in body
     assert "diverged" not in body
     # The 1.5B student's gain is below the 1-point rule, at just over 2x the p95 latency. The rule's minimum is
     # spelled out without a forced decimal ("1 point", not "1.00 points"); the gain itself keeps its decimals.

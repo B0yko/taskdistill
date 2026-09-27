@@ -92,7 +92,9 @@ def main() -> int:
         out.setdefault("rerun", {"date": rerun.get("date"), "hardware": rerun.get("hardware")})
         out["tasks"][task] = compare_task(reference, rerun, args.tolerance)
     out["all_within"] = all(t["all_within"] for t in out["tasks"].values())
-    out["command"] = "scripts/reproduce.sh on a second machine, then scripts/compare_reports.py"
+    out["command"] = (
+        "scripts/reproduce.sh on a second machine, then scripts/compare_reports.py --rerun reports/reproduction"
+    )
     args.out.write_text(json.dumps(out, indent=2) + "\n", encoding="utf-8")
     for task, result in out["tasks"].items():
         sel = result["selected_run"]

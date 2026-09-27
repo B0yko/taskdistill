@@ -871,8 +871,19 @@ def _reproducibility_section(reproduction: Mapping[str, Any] | None) -> list[str
         lines += [*md_table(["Task", "Row", "Metric", "Reference", "Rerun", "Diff"], metric_rows), ""]
     if selected_sentences:
         lines += [" ".join(selected_sentences), ""]
+    outside = []
+    for task, result in (reproduction.get("tasks") or {}).items():
+        for row in result.get("rows") or []:
+            if not row.get("within"):
+                diff = _num(row.get("diff_pts")) or 0.0
+                outside.append(
+                    f"{_task_label(task)} {row.get('row')}, {col_label(str(row.get('metric')))}: "
+                    f"{pct(row.get('reference'))} vs {pct(row.get('rerun'))} ({diff:+.2f} points)"
+                )
     overall = "yes" if reproduction.get("all_within") else "no"
     lines += [f"All rows within tolerance across every task: {overall}.", ""]
+    if outside:
+        lines += ["Outside the tolerance: " + "; ".join(outside) + ".", ""]
     return lines
 
 
@@ -995,36 +1006,95 @@ def _base_model_section(banking: Mapping[str, Any], invoices: Mapping[str, Any])
     return lines
 
 
-def _lr_ablation_bullet(ablation: Mapping[str, Any] | None) -> str | None:
-    if not ablation:
-        return None
+DIVERGED_AGREEMENT = 0.10  # a quick run whose validation agreement stays below this counts as diverged
+
+
+def _ablation_summary(ablation: Mapping[str, Any]) -> dict[str, Any] | None:
     summary = ablation.get("summary") or {}
     constant, warm = summary.get("constant") or {}, summary.get("warmup_cosine") or {}
     if not constant or not warm:
         return None
-    runs = [r for r in ablation.get("runs") or [] if r.get("lr_schedule") == "constant"]
-    # The outlier is named by its own validation agreement (a value runs[] states directly), not by an inferred
-    # claim about training loss the seed's own record does not make in those terms.
-    agreements = [(r.get("seed"), _num(r.get("valid_agreement"))) for r in runs]
-    agreements = [(seed, agreement) for seed, agreement in agreements if agreement is not None]
-    outlier: tuple[Any, float] | None = None
-    if len(agreements) >= 3:
-        ordered = sorted(agreements, key=lambda item: item[1])
-        rest = [agreement for _, agreement in ordered[1:]]
-        if rest and ordered[0][1] < 0.5 * min(rest):
-            outlier = ordered[0]
-    divergence = (
-        f" seed {outlier[0]} reached only {pct(outlier[1])} validation agreement, well below the other two;"
-        if outlier is not None
-        else ""
+    runs = ablation.get("runs") or []
+
+    def diverged(schedule: str) -> tuple[int, int]:
+        values = [_num(r.get("valid_agreement")) for r in runs if r.get("lr_schedule") == schedule]
+        values = [v for v in values if v is not None]
+        return sum(v < DIVERGED_AGREEMENT for v in values), len(values)
+
+    return {
+        "constant": constant,
+        "warm": warm,
+        "div_constant": diverged("constant"),
+        "div_warm": diverged("warmup_cosine"),
+    }
+
+
+def _cpu_name(report: Mapping[str, Any] | None) -> str:
+    hardware = (report or {}).get("hardware") or {}
+    return str(hardware.get("cpu") or "second machine")
+
+
+def _early_checkpoints(training: Mapping[str, Any] | None, task: str) -> tuple[int, int]:
+    """(runs whose best checkpoint is at or before the end of warm-up, all teacher-label 0.5B runs) for a task."""
+    runs = [
+        r
+        for r in (training or {}).get("runs") or []
+        if r.get("task") == task and r.get("labels") == "teacher" and "0.5B" in str(r.get("base_model"))
+    ]
+    early = [
+        r
+        for r in runs
+        if _num(r.get("best_iteration")) is not None
+        and _num(r.get("warmup_iterations")) is not None
+        and _num(r.get("best_iteration")) <= _num(r.get("warmup_iterations"))
+    ]
+    return len(early), len(runs)
+
+
+def _lr_ablation_bullet(
+    ablation: Mapping[str, Any] | None,
+    second: Mapping[str, Any] | None = None,
+    training: Mapping[str, Any] | None = None,
+    second_training: Mapping[str, Any] | None = None,
+) -> str | None:
+    if not ablation:
+        return None
+    first = _ablation_summary(ablation)
+    if first is None:
+        return None
+    n_seeds = len(ablation.get("seeds") or []) or first["div_warm"][1]
+
+    def machine_text(summary: Mapping[str, Any], name: str) -> str:
+        return (
+            f"on the {name} a constant rate reached {pct(summary['constant'].get('valid_agreement_mean'))} ± "
+            f"{pct(summary['constant'].get('valid_agreement_std'))} mean validation agreement with the teacher and "
+            f"linear warm-up + cosine decay {pct(summary['warm'].get('valid_agreement_mean'))} ± "
+            f"{pct(summary['warm'].get('valid_agreement_std'))}, with {summary['div_constant'][0]} and "
+            f"{summary['div_warm'][0]} of {summary['div_warm'][1]} seeds diverging (agreement below "
+            f"{pct(DIVERGED_AGREEMENT, 0)})"
+        )
+
+    parts = [machine_text(first, _cpu_name(ablation))]
+    second_summary = _ablation_summary(second) if second else None
+    if second_summary is not None:
+        parts.append(machine_text(second_summary, _cpu_name(second)))
+    text = (
+        f"Learning-rate schedule at the spec's peak rate (quick profile, 200 iterations, {n_seeds} seeds, Banking77): "
+        + "; ".join(parts)
+        + ". Warm-up + cosine is the default and did better on average, but it does not make short runs at this "
+        "peak rate reliable."
     )
-    return (
-        f"Learning-rate schedule ({ablation.get('profile', 'quick')} profile, {integer(len(runs))}-seed Banking77 "
-        f"validation): a constant learning rate reached {pct(constant.get('valid_agreement_mean'))} ± "
-        f"{pct(constant.get('valid_agreement_std'))} mean agreement with the teacher, against "
-        f"{pct(warm.get('valid_agreement_mean'))} ± {pct(warm.get('valid_agreement_std'))} for linear "
-        f"warm-up + cosine decay;{divergence} the warm-up schedule is the default."
-    )
+    early = [(_cpu_name(ablation), _early_checkpoints(training, "invoices"))]
+    if second_training is not None:
+        early.append((_cpu_name(second), _early_checkpoints(second_training, "invoices")))
+    early = [(name, counts) for name, counts in early if counts[1]]
+    if early:
+        described = " and ".join(f"{counts[0]} of {counts[1]} on the {name}" for name, counts in early)
+        text += (
+            f" In the full profile, Banking77 converged on every seed; on invoices, the best validation checkpoint of "
+            f"{described} 0.5B seeds came at or before the end of warm-up, so those students stopped early."
+        )
+    return text
 
 
 def _size_ceiling_bullet(banking: Mapping[str, Any]) -> str | None:
@@ -1230,6 +1300,8 @@ def render_results() -> str:
     spend = load_optional("spend.json")
     downloads = load_optional("downloads.json")
     ablation = load_optional("ablations/lr_schedule.json")
+    ablation_second = load_optional("ablations/lr_schedule.second_machine.json")
+    training_second = load_optional("reproduction/training.json")
     reproduction = load_optional("reproduction.json")
     bakeoff_banking = load_optional("bakeoff/banking77.json")
     bakeoff_variants = {
@@ -1250,7 +1322,7 @@ def render_results() -> str:
 
     lines += ["### What didn't work", ""]
     bullets = [
-        _lr_ablation_bullet(ablation),
+        _lr_ablation_bullet(ablation, ablation_second, training, training_second),
         _size_ceiling_bullet(banking),
         _label_ceiling_bullet(banking),
         _prompt_variant_bullet(bakeoff_banking, bakeoff_variants),

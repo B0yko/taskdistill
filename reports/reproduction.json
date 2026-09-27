@@ -1,0 +1,403 @@
+{
+  "tolerance_pts": 2.0,
+  "tasks": {
+    "banking77": {
+      "rows": [
+        {
+          "row": "teacher (deepseek/deepseek-v4.1-flash)",
+          "metric": "accuracy",
+          "reference": 0.7580487804878049,
+          "rerun": 0.7580487804878049,
+          "diff_pts": 0.0,
+          "within": true
+        },
+        {
+          "row": "teacher (deepseek/deepseek-v4.1-flash)",
+          "metric": "macro_f1",
+          "reference": 0.74851103866949,
+          "rerun": 0.74851103866949,
+          "diff_pts": 0.0,
+          "within": true
+        },
+        {
+          "row": "zero-shot qwen2.5-0.5b",
+          "metric": "accuracy",
+          "reference": 0.2302439024390244,
+          "rerun": 0.23089430894308943,
+          "diff_pts": 0.065,
+          "within": true
+        },
+        {
+          "row": "zero-shot qwen2.5-0.5b",
+          "metric": "macro_f1",
+          "reference": 0.20491939216587107,
+          "rerun": 0.2059840805700092,
+          "diff_pts": 0.106,
+          "within": true
+        },
+        {
+          "row": "zero-shot qwen2.5-0.5b",
+          "metric": "agreement",
+          "reference": 0.25595044016954677,
+          "rerun": 0.2569285947179654,
+          "diff_pts": 0.098,
+          "within": true
+        },
+        {
+          "row": "TF-IDF + logistic regression (teacher labels)",
+          "metric": "accuracy",
+          "reference": 0.7245528455284553,
+          "rerun": 0.7245528455284553,
+          "diff_pts": 0.0,
+          "within": true
+        },
+        {
+          "row": "TF-IDF + logistic regression (teacher labels)",
+          "metric": "macro_f1",
+          "reference": 0.7135404963610564,
+          "rerun": 0.7135404963610564,
+          "diff_pts": 0.0,
+          "within": true
+        },
+        {
+          "row": "TF-IDF + logistic regression (teacher labels)",
+          "metric": "agreement",
+          "reference": 0.8350179328333877,
+          "rerun": 0.8350179328333877,
+          "diff_pts": 0.0,
+          "within": true
+        },
+        {
+          "row": "student qwen2.5-0.5b (teacher labels, 3 seeds)",
+          "metric": "accuracy",
+          "reference": 0.7567479674796749,
+          "rerun": 0.7592411924119241,
+          "diff_pts": 0.249,
+          "within": true
+        },
+        {
+          "row": "student qwen2.5-0.5b (teacher labels, 3 seeds)",
+          "metric": "macro_f1",
+          "reference": 0.7461992210746667,
+          "rerun": 0.7490663593016351,
+          "diff_pts": 0.287,
+          "within": true
+        },
+        {
+          "row": "student qwen2.5-0.5b (teacher labels, 3 seeds)",
+          "metric": "agreement",
+          "reference": 0.8806651450929247,
+          "rerun": 0.8884903814802739,
+          "diff_pts": 0.783,
+          "within": true
+        },
+        {
+          "row": "student qwen2.5-1.5b (teacher labels)",
+          "metric": "accuracy",
+          "reference": 0.7648780487804878,
+          "rerun": 0.7632520325203253,
+          "diff_pts": -0.163,
+          "within": true
+        },
+        {
+          "row": "student qwen2.5-1.5b (teacher labels)",
+          "metric": "macro_f1",
+          "reference": 0.7548536176460483,
+          "rerun": 0.7532294289233067,
+          "diff_pts": -0.162,
+          "within": true
+        },
+        {
+          "row": "student qwen2.5-1.5b (teacher labels)",
+          "metric": "agreement",
+          "reference": 0.8924029996739485,
+          "rerun": 0.8933811542223671,
+          "diff_pts": 0.098,
+          "within": true
+        }
+      ],
+      "max_abs_diff_pts": 0.783,
+      "all_within": true,
+      "selected_run": {
+        "reference": "qwen2.5-0.5b-full-s13",
+        "rerun": "qwen2.5-1.5b-full-s13",
+        "same": false,
+        "reference_reason": "qwen2.5-0.5b-full-s13: best validation agreement (0.8816) among 3 run(s) of mlx-community/Qwen2.5-0.5B-Instruct-4bit; mlx-community/Qwen2.5-1.5B-Instruct-4bit vs mlx-community/Qwen2.5-0.5B-Instruct-4bit: large gains 0.97 points, below the 1.00-point minimum",
+        "rerun_reason": "qwen2.5-1.5b-full-s13: best validation agreement (0.9019) among 1 run(s) of mlx-community/Qwen2.5-1.5B-Instruct-4bit; mlx-community/Qwen2.5-1.5B-Instruct-4bit vs mlx-community/Qwen2.5-0.5B-Instruct-4bit: large gains 1.26 points (>= 1.00) at 1.87x the small p95 (< 3x)"
+      },
+      "cascade": {
+        "reference": {
+          "run_id": "qwen2.5-0.5b-full-s13",
+          "metrics": {
+            "accuracy": 0.7613008130081301,
+            "macro_f1": 0.7503143902504358,
+            "agreement": 0.9758721878056733
+          },
+          "escalation_rate_test": 0.23736550374959245,
+          "target_met_on_test": true
+        },
+        "rerun": {
+          "run_id": "qwen2.5-1.5b-full-s13",
+          "metrics": {
+            "accuracy": 0.7648780487804878,
+            "macro_f1": 0.7537233834179486,
+            "agreement": 0.9823932181284643
+          },
+          "escalation_rate_test": 0.21584610368438215,
+          "target_met_on_test": true
+        }
+      }
+    },
+    "invoices": {
+      "rows": [
+        {
+          "row": "teacher (deepseek/deepseek-v4-flash-0731)",
+          "metric": "json_validity",
+          "reference": 1.0,
+          "rerun": 1.0,
+          "diff_pts": 0.0,
+          "within": true
+        },
+        {
+          "row": "teacher (deepseek/deepseek-v4-flash-0731)",
+          "metric": "field_micro_f1",
+          "reference": 0.9946902654867257,
+          "rerun": 0.9946902654867257,
+          "diff_pts": 0.0,
+          "within": true
+        },
+        {
+          "row": "teacher (deepseek/deepseek-v4-flash-0731)",
+          "metric": "field_exact_match",
+          "reference": 0.995,
+          "rerun": 0.995,
+          "diff_pts": 0.0,
+          "within": true
+        },
+        {
+          "row": "teacher (deepseek/deepseek-v4-flash-0731)",
+          "metric": "doc_exact_match",
+          "reference": 0.96,
+          "rerun": 0.96,
+          "diff_pts": 0.0,
+          "within": true
+        },
+        {
+          "row": "zero-shot qwen2.5-0.5b",
+          "metric": "json_validity",
+          "reference": 0.42333333333333334,
+          "rerun": 0.4216666666666667,
+          "diff_pts": -0.167,
+          "within": true
+        },
+        {
+          "row": "zero-shot qwen2.5-0.5b",
+          "metric": "field_micro_f1",
+          "reference": 0.3702185792349727,
+          "rerun": 0.3706233988044407,
+          "diff_pts": 0.04,
+          "within": true
+        },
+        {
+          "row": "zero-shot qwen2.5-0.5b",
+          "metric": "field_exact_match",
+          "reference": 0.24833333333333332,
+          "rerun": 0.248125,
+          "diff_pts": -0.021,
+          "within": true
+        },
+        {
+          "row": "zero-shot qwen2.5-0.5b",
+          "metric": "doc_exact_match",
+          "reference": 0.018333333333333333,
+          "rerun": 0.02,
+          "diff_pts": 0.167,
+          "within": true
+        },
+        {
+          "row": "zero-shot qwen2.5-0.5b",
+          "metric": "agreement",
+          "reference": 0.36885245901639346,
+          "rerun": 0.36925704526046116,
+          "diff_pts": 0.04,
+          "within": true
+        },
+        {
+          "row": "student qwen2.5-0.5b (teacher labels, 3 seeds)",
+          "metric": "json_validity",
+          "reference": 0.971111111111111,
+          "rerun": 0.965,
+          "diff_pts": -0.611,
+          "within": true
+        },
+        {
+          "row": "student qwen2.5-0.5b (teacher labels, 3 seeds)",
+          "metric": "field_micro_f1",
+          "reference": 0.8724540758951349,
+          "rerun": 0.8820941393445493,
+          "diff_pts": 0.964,
+          "within": true
+        },
+        {
+          "row": "student qwen2.5-0.5b (teacher labels, 3 seeds)",
+          "metric": "field_exact_match",
+          "reference": 0.8591666666666667,
+          "rerun": 0.8589583333333333,
+          "diff_pts": -0.021,
+          "within": true
+        },
+        {
+          "row": "student qwen2.5-0.5b (teacher labels, 3 seeds)",
+          "metric": "doc_exact_match",
+          "reference": 0.3922222222222222,
+          "rerun": 0.4155555555555555,
+          "diff_pts": 2.333,
+          "within": false
+        },
+        {
+          "row": "student qwen2.5-0.5b (teacher labels, 3 seeds)",
+          "metric": "agreement",
+          "reference": 0.8680565100243842,
+          "rerun": 0.8766355268514191,
+          "diff_pts": 0.858,
+          "within": true
+        },
+        {
+          "row": "student qwen2.5-1.5b (teacher labels)",
+          "metric": "json_validity",
+          "reference": 0.9916666666666667,
+          "rerun": 0.99,
+          "diff_pts": -0.167,
+          "within": true
+        },
+        {
+          "row": "student qwen2.5-1.5b (teacher labels)",
+          "metric": "field_micro_f1",
+          "reference": 0.9407975119404642,
+          "rerun": 0.9453649798477385,
+          "diff_pts": 0.457,
+          "within": true
+        },
+        {
+          "row": "student qwen2.5-1.5b (teacher labels)",
+          "metric": "field_exact_match",
+          "reference": 0.94,
+          "rerun": 0.9366666666666666,
+          "diff_pts": -0.333,
+          "within": true
+        },
+        {
+          "row": "student qwen2.5-1.5b (teacher labels)",
+          "metric": "doc_exact_match",
+          "reference": 0.675,
+          "rerun": 0.7433333333333333,
+          "diff_pts": 6.833,
+          "within": false
+        },
+        {
+          "row": "student qwen2.5-1.5b (teacher labels)",
+          "metric": "agreement",
+          "reference": 0.9354659557925136,
+          "rerun": 0.9413345275414241,
+          "diff_pts": 0.587,
+          "within": true
+        },
+        {
+          "row": "student qwen2.5-1.5b (gold labels)",
+          "metric": "json_validity",
+          "reference": 0.95,
+          "rerun": 0.9816666666666667,
+          "diff_pts": 3.167,
+          "within": false
+        },
+        {
+          "row": "student qwen2.5-1.5b (gold labels)",
+          "metric": "field_micro_f1",
+          "reference": 0.9382631518886226,
+          "rerun": 0.9145222644886999,
+          "diff_pts": -2.374,
+          "within": false
+        },
+        {
+          "row": "student qwen2.5-1.5b (gold labels)",
+          "metric": "field_exact_match",
+          "reference": 0.91375,
+          "rerun": 0.9097916666666667,
+          "diff_pts": -0.396,
+          "within": true
+        },
+        {
+          "row": "student qwen2.5-1.5b (gold labels)",
+          "metric": "doc_exact_match",
+          "reference": 0.7816666666666666,
+          "rerun": 0.68,
+          "diff_pts": -10.167,
+          "within": false
+        },
+        {
+          "row": "student qwen2.5-1.5b (gold labels)",
+          "metric": "agreement",
+          "reference": 0.9346114344402602,
+          "rerun": 0.9102707540836876,
+          "diff_pts": -2.434,
+          "within": false
+        }
+      ],
+      "max_abs_diff_pts": 10.167,
+      "all_within": false,
+      "selected_run": {
+        "reference": "qwen2.5-1.5b-full-s13",
+        "rerun": "qwen2.5-1.5b-full-s13",
+        "same": true,
+        "reference_reason": "qwen2.5-1.5b-full-s13: best validation agreement (0.9854) among 1 run(s) of mlx-community/Qwen2.5-1.5B-Instruct-4bit; mlx-community/Qwen2.5-1.5B-Instruct-4bit vs mlx-community/Qwen2.5-0.5B-Instruct-4bit: large gains 3.79 points (>= 1.00) at 1.79x the small p95 (< 3x)",
+        "rerun_reason": "qwen2.5-1.5b-full-s13: best validation agreement (0.9854) among 1 run(s) of mlx-community/Qwen2.5-1.5B-Instruct-4bit; mlx-community/Qwen2.5-1.5B-Instruct-4bit vs mlx-community/Qwen2.5-0.5B-Instruct-4bit: large gains 3.37 points (>= 1.00) at 1.57x the small p95 (< 3x)"
+      },
+      "cascade": {
+        "reference": {
+          "run_id": "qwen2.5-1.5b-full-s13",
+          "metrics": {
+            "json_validity": 1.0,
+            "field_micro_f1": 0.9462389380530973,
+            "field_exact_match": 0.949375,
+            "doc_exact_match": 0.6916666666666667,
+            "agreement": 0.940929203539823
+          },
+          "escalation_rate_test": 0.016666666666666666,
+          "target_met_on_test": false
+        },
+        "rerun": {
+          "run_id": "qwen2.5-1.5b-full-s13",
+          "metrics": {
+            "json_validity": 1.0,
+            "field_micro_f1": 0.9503008691776242,
+            "field_exact_match": 0.9466666666666667,
+            "doc_exact_match": 0.7533333333333333,
+            "agreement": 0.9462892801426342
+          },
+          "escalation_rate_test": 0.01,
+          "target_met_on_test": false
+        }
+      }
+    }
+  },
+  "reference": {
+    "date": "2026-09-27T00:49:45+00:00",
+    "hardware": {
+      "model": "Mac17,4",
+      "cpu": "Apple M5",
+      "memory_gb": 24.0,
+      "os": "macOS 26.6.2"
+    }
+  },
+  "rerun": {
+    "date": "2026-09-27T00:16:23+00:00",
+    "hardware": {
+      "model": "Mac16,9",
+      "cpu": "Apple M4 Max",
+      "memory_gb": 128.0,
+      "os": "macOS 26.5.2"
+    }
+  },
+  "all_within": false,
+  "command": "scripts/reproduce.sh on a second machine, then scripts/compare_reports.py --rerun reports/reproduction"
+}
