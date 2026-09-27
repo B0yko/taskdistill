@@ -1483,10 +1483,12 @@ def build_report(
     out_dir: Path | str | None = None,
     store: Store | None = None,
     command: str | None = None,
+    run_id: str | None = None,
 ) -> dict[str, Any]:
     """Build the report, write ``<out_dir>/report.json`` and ``report.md`` and return the JSON.
 
-    ``out_dir`` defaults to ``reports/<task>`` relative to the current directory.
+    ``out_dir`` defaults to ``reports/<task>`` relative to the current directory. ``run_id`` reports the cascade,
+    operating point and costs of that run instead of the one in ``selected_run.json`` (which is still listed).
     """
     target = Path(out_dir) if out_dir is not None else Path("reports") / spec.task
     evals = _load_evals(spec.task)
@@ -1496,6 +1498,19 @@ def build_report(
             "(or use --from-serve-log)"
         )
     selected, selection, notes = _selected_run(spec.task, evals)
+    if run_id is not None:
+        if run_id not in evals:
+            raise ReportError(
+                f"run {run_id} has no test evaluation: run `taskdistill eval --task {spec.task} --run {run_id}`"
+            )
+        if run_id != selected:
+            notes.append(f"reported for run {run_id} (--run); selected_run.json names {selected}")
+            selection = {
+                **selection,
+                "run_id": run_id,
+                "reason": f"chosen with --run; the validation selection was {selected} ({selection.get('reason')})",
+            }
+            selected = run_id
     sel_ev = evals.get(selected) if selected else None
     candidates = _dict(selection.get("candidates"))
     curate_stats = _dict(_read_json(_task_dir(spec.task) / "data" / "curate_stats.json"))

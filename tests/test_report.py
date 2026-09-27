@@ -994,3 +994,18 @@ def test_break_even_without_labelling_cost_is_a_lower_bound(home: Path) -> None:
     be = build_break_even(spec, None, cost_latency, {"usd": 0.01, "source": "ledger"})
     assert be["volume"] == 100 and be["lower_bound"] is True  # no train log: training energy left out
     assert any("train_log.json" in note for note in be["notes"])
+
+
+def test_report_for_another_run(home: Path, tmp_path: Path) -> None:
+    spec = make_spec()
+    store = make_workspace(spec)
+    default = build_report(spec, out_dir=tmp_path / "a", store=store)
+    other = next(
+        r["run_ids"][0] for r in default["quality"]["rows"] if r["system"] == "student" and "1.5b" in r["name"]
+    )
+    report = build_report(spec, out_dir=tmp_path / "b", store=store, run_id=other)
+    assert report["selected_run"]["run_id"] == other
+    assert "chosen with --run" in report["selected_run"]["reason"]
+    assert any("--run" in note for note in report["notes"])
+    with pytest.raises(ReportError, match="no test evaluation"):
+        build_report(spec, out_dir=tmp_path / "c", store=store, run_id="no-such-run")

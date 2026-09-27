@@ -341,6 +341,7 @@ def report(
     from_serve_log: bool = typer.Option(False, "--from-serve-log", help="Add figures from served traffic."),
     since: str = typer.Option("24h", "--since", help="Window for --from-serve-log, e.g. 30m, 24h, 7d."),
     out: Path | None = typer.Option(None, "--out", help="Output directory (default: reports/<task>)."),
+    run: str | None = typer.Option(None, "--run", help="Report this run's cascade and costs (default: selected run)."),
 ) -> None:
     """Write reports/<task>/report.{md,json}: quality, operating point, cost, latency, break-even."""
     from taskdistill.config import load_task
@@ -349,7 +350,9 @@ def report(
     spec = load_task(task)
     command = "taskdistill " + " ".join(sys.argv[1:]) if sys.argv else None
     since_s = parse_duration(since) if from_serve_log else None
-    result = build_report(spec, from_serve_log=from_serve_log, since_s=since_s, out_dir=out, command=command)
+    result = build_report(
+        spec, from_serve_log=from_serve_log, since_s=since_s, out_dir=out, command=command, run_id=run
+    )
     target = out or Path("reports") / task
     typer.echo(f"wrote {target / 'report.md'} and {target / 'report.json'}")
     be = result.get("break_even") or {}
