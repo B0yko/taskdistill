@@ -3,6 +3,16 @@
 All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses [Semantic Versioning](https://semver.org/).
 
+## [0.1.1] - 2026-09-27
+
+Packaging only; the code and the reported numbers are those of 0.1.0.
+
+### Changed
+
+- The PyPI description points its images and relative links at the tagged sources on GitHub, and the package
+  summary no longer calls the cascade calibrated.
+- The sdist also ships `scripts/` and `examples/`, which some tests read.
+
 ## [0.1.0] - 2026-09-27
 
 First release.
