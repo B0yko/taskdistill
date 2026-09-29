@@ -82,7 +82,7 @@ BACKOFF_S = 1.0
 _USER_AGENT = f"taskdistill/{__version__} (+https://github.com/B0yko/taskdistill)"
 HUB_EXTRA_HINT = (
     'install the "hub" extra, e.g. '
-    "uvx --from 'taskdistill[hub] @ git+https://github.com/B0yko/taskdistill' taskdistill demo banking77 "
+    "uvx --from 'taskdistill[hub] @ git+https://github.com/B0yko/taskdistill@v0.1.1' taskdistill demo banking77 "
     "(or: pip install 'taskdistill[hub]')"
 )
 

@@ -464,7 +464,7 @@ def test_run_training_refuses_mlx_off_apple_silicon(home: Path, monkeypatch: pyt
         runner.run_training(spec, backend="mlx")
     message = str(excinfo.value)
     assert message.startswith("MLX training needs Apple Silicon (arm64 macOS 14+). Use --backend torch")
-    assert "uvx --from 'taskdistill[torch] @ git+https://github.com/B0yko/taskdistill' taskdistill" in message
+    assert "uvx --from 'taskdistill[torch] @ git+https://github.com/B0yko/taskdistill@v0.1.1' taskdistill" in message
 
 
 def test_run_training_writes_selected_run_once(home: Path, monkeypatch: pytest.MonkeyPatch) -> None:

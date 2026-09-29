@@ -50,7 +50,7 @@ from taskdistill.train.common import (
 
 MLX_UNAVAILABLE = (
     "MLX training needs Apple Silicon (arm64 macOS 14+). Use --backend torch (install the torch extra: "
-    "uvx --from 'taskdistill[torch] @ git+https://github.com/B0yko/taskdistill' taskdistill ...)."
+    "uvx --from 'taskdistill[torch] @ git+https://github.com/B0yko/taskdistill@v0.1.1' taskdistill ...)."
 )
 SELECTED_RUN_REASON = "only run so far; re-run eval --select to choose among runs on validation"
 # mlx-lm announces its end-of-run save of the final weights; the run keeps the best-validation adapter instead.

@@ -17,7 +17,7 @@ if TYPE_CHECKING:
 BACKENDS = ("mlx", "torch")
 TORCH_INSTALL_HINT = (
     "install the torch extra: "
-    "uvx --from 'taskdistill[torch] @ git+https://github.com/B0yko/taskdistill' taskdistill ..."
+    "uvx --from 'taskdistill[torch] @ git+https://github.com/B0yko/taskdistill@v0.1.1' taskdistill ..."
 )
 
 

@@ -412,7 +412,7 @@ def test_hub_fallback_without_pyarrow_names_the_hub_extra(tmp_path: Path, monkey
     message = str(excinfo.value)
     assert "HTTP 404" in message
     assert 'install the "hub" extra' in message
-    assert "uvx --from 'taskdistill[hub] @ git+https://github.com/B0yko/taskdistill'" in message
+    assert "uvx --from 'taskdistill[hub] @ git+https://github.com/B0yko/taskdistill@v0.1.1'" in message
     assert hub_route.call_count == 0
 
 

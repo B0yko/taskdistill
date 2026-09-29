@@ -63,7 +63,9 @@ Live measurements (teacher latency, the live bench, spend) are dated and are not
 
 ## Releasing
 
-Releases are tagged on GitHub. The PyPI workflow (`.github/workflows/publish.yml`) only runs when started by
+Releases are tagged on GitHub. When the version changes, update the `vX.Y.Z` tag in the install commands (README,
+install hints in `src/`) and in the `[tool.hatch.metadata.hooks.fancy-pypi-readme]` substitutions in `pyproject.toml`.
+The PyPI workflow (`.github/workflows/publish.yml`) only runs when started by
 hand from the Actions tab and uses PyPI trusted publishing:
 
 1. On pypi.org, open *Account settings → Publishing* and add a pending GitHub publisher: project `taskdistill`,

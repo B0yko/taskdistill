@@ -75,7 +75,7 @@ installed. No API key is needed: without one, the demo replays the recorded teac
 package.
 
 ```bash
-uvx --from git+https://github.com/B0yko/taskdistill taskdistill demo banking77
+uvx --from git+https://github.com/B0yko/taskdistill@v0.1.1 taskdistill demo banking77
 ```
 
 The same release is on PyPI: `uvx taskdistill demo banking77` runs it without cloning anything.
@@ -98,7 +98,7 @@ The demo runs the whole pipeline on [Banking77](#data-and-licences) and leaves a
 `reports/banking77/` and a `request.json` in the current directory. Serve the cascade and call it:
 
 ```bash
-uvx --from git+https://github.com/B0yko/taskdistill taskdistill serve --task banking77
+uvx --from git+https://github.com/B0yko/taskdistill@v0.1.1 taskdistill serve --task banking77
 ```
 
 ```bash
@@ -163,7 +163,7 @@ Say your application classifies support tickets with a paid API model.
 1. **Install the command and create a task spec.**
 
    ```bash
-   uv tool install git+https://github.com/B0yko/taskdistill
+   uv tool install git+https://github.com/B0yko/taskdistill@v0.1.1
    ```
 
    ```bash
