@@ -33,7 +33,7 @@ def _load_script(name: str, *, reports: Path, readme: Path, monkeypatch: pytest.
     """Import a ``scripts/*.py`` file as a fresh module, with the env vars it reads already set.
 
     Not added to ``sys.path`` and not cached in ``sys.modules``, so each call gets its own module object bound to
-    the ``reports``/``readme`` paths given -- the same pattern as ``tests/test_fixes_integration.py``.
+    the ``reports``/``readme`` paths given -- the same pattern as ``tests/test_pricing_limits_and_docs.py``.
     """
     monkeypatch.setenv("SYNC_README_REPORTS", str(reports))
     monkeypatch.setenv("SYNC_README_PATH", str(readme))

@@ -1,4 +1,4 @@
-"""Regressions for training and evaluation: retrained run ids, local bases, selection and base revisions."""
+"""Training and evaluation bookkeeping: retrained run ids, local bases, run selection and base revisions."""
 
 from __future__ import annotations
 

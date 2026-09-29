@@ -1,4 +1,5 @@
-"""Regression tests for the teacher client, factory, recording and ledger fixes."""
+"""Teacher client budgeting and capture: reservations and per-call charges in the ledger, run caps, recorded answers
+and the serve-time timeout and retry policy."""
 
 from __future__ import annotations
 

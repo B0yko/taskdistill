@@ -1,4 +1,4 @@
-"""Regressions for the integration fixes that cross file ownership between the bug-hunt groups."""
+"""Pricing snapshot completion limits, the ablation script workspace and the README's serve escalation settings."""
 
 from __future__ import annotations
 
@@ -59,7 +59,7 @@ def _load_script(name: str) -> types.ModuleType:
     return module
 
 
-# -- ablation_lr_schedule.py never mixes with an inherited workspace (item 9) ------------------------
+# -- ablation_lr_schedule.py never mixes with an inherited workspace ------------------------
 
 
 def test_ablation_home_ignores_an_inherited_taskdistill_home(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -72,7 +72,7 @@ def test_ablation_home_ignores_an_inherited_taskdistill_home(monkeypatch: pytest
     assert module.ablation_home() == "/tmp/custom-ablation-home"
 
 
-# -- PricingSnapshot.max_completion_tokens and the limits it is built and persisted from (item 1) ----
+# -- PricingSnapshot.max_completion_tokens and the limits it is built and persisted from ----
 
 
 def test_from_openrouter_parses_the_models_list_and_per_endpoint_limits() -> None:
@@ -143,7 +143,7 @@ def test_the_packaged_pricing_snapshot_carries_limits_for_its_bundled_models() -
         assert isinstance(snapshot.max_completion_tokens(slug), int)
 
 
-# -- the README documents serve's actual escalation deadline and retry policy (item 11) --------------
+# -- the README documents serve's actual escalation deadline and retry policy --------------
 
 
 def test_readme_states_serves_real_escalation_deadline_and_retry_policy() -> None:

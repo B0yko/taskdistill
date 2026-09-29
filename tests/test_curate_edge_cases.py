@@ -1,6 +1,6 @@
-"""Regression tests for curate fixes: schema-invalid values after the PII scrub, predefined split values checked at
-import, predefined test rows whose recorded outputs are invalid, output-weighted dedupe votes and malformed text
-content parts."""
+"""Curate edge cases: schema-invalid values after the PII scrub, predefined split values checked at import,
+predefined test rows whose recorded outputs are invalid, output-weighted dedupe votes and malformed text content
+parts."""
 
 from __future__ import annotations
 
