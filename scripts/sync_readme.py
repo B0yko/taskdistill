@@ -521,7 +521,7 @@ def render_headline() -> str:
     if spend.get("total") is not None:
         cells.append(
             (f"${_num(spend['total']) or 0:.2f}", "total API spend",
-             f"{integer(spend.get('calls'))} teacher calls for the whole build")
+             f"{integer(spend.get('calls'))} teacher calls in total")
         )  # fmt: skip
     row = "".join(
         f'<td align="center" width="{100 // len(cells)}%"><h3>{big}</h3>{label}<br><sub>{detail}</sub></td>'
@@ -1408,7 +1408,7 @@ def _spend_and_downloads_section(spend: Mapping[str, Any] | None, downloads: Map
             rows.append([_task_label(task), usd(labelling), usd(bakeoff), live_bench])
         lines += [*md_table(["Task", "Teacher labelling", "Bake-off", "Live bench"], rows), ""]
         lines += [
-            f"Total spend for the whole build: {usd(spend.get('total'))} of a {usd(spend.get('cap'))} global cap "
+            f"Total spend across all runs: {usd(spend.get('total'))} of a {usd(spend.get('cap'))} global cap "
             f"({integer(spend.get('calls'))} teacher calls).",
             "",
         ]

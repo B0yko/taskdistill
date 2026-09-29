@@ -17,7 +17,7 @@
 
 <!-- sync:headline -->
 <table>
-<tr><td align="center" width="33%"><h3>97.6%</h3>agreement with the teacher<br><sub>Banking77 test set, 23.7% of requests escalated</sub></td><td align="center" width="33%"><h3>30× faster</h3>student vs teacher API at p50<br><sub>19.9 ms vs 594 ms, Mac Studio M4 Max</sub></td><td align="center" width="33%"><h3>$0.25</h3>total API spend<br><sub>17,302 teacher calls for the whole build</sub></td></tr>
+<tr><td align="center" width="33%"><h3>97.6%</h3>agreement with the teacher<br><sub>Banking77 test set, 23.7% of requests escalated</sub></td><td align="center" width="33%"><h3>30× faster</h3>student vs teacher API at p50<br><sub>19.9 ms vs 594 ms, Mac Studio M4 Max</sub></td><td align="center" width="33%"><h3>$0.25</h3>total API spend<br><sub>17,302 teacher calls in total</sub></td></tr>
 </table>
 
 <sub>Not every target held: on invoices the cascade missed its 97.0% target on the test set (layouts never seen in training), reaching 94.1%. Details in <a href="#results">Results</a>.</sub>
@@ -619,7 +619,7 @@ The rule compares point estimates on the validation split (the best seed of each
 | Banking77 | $0.0796 | $0.0211 | $0.000500 |
 | Invoices | $0.138 | $0.0116 | $0.000199 |
 
-Total spend for the whole build: $0.251 of a $14.00 global cap (17,302 teacher calls).
+Total spend across all runs: $0.251 of a $14.00 global cap (17,302 teacher calls).
 
 Model downloads: 1.17 GB, within the 1.5 GB budget (student base 0.5B: 0.29 GB; student base 1.5B: 0.88 GB).
 <!-- /sync:results -->

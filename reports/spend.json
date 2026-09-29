@@ -32,8 +32,8 @@
   "open_reserved": 0.0,
   "released": 0,
   "sources": [
-    "ledger of the build workspace (MacBook Air): bake-off, labelling, recording fill",
-    "ledger of the live-bench workspace (Mac Studio): phase serve"
+    "spend ledger recorded on the MacBook Air M5: bake-off, labelling, recording fill",
+    "spend ledger recorded on the Mac Studio M4 Max: serve phase"
   ],
   "total": 0.251446333
 }
