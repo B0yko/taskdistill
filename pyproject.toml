@@ -82,6 +82,10 @@ pattern = '\]\((?!https?://|#|mailto:)([^)\s]+)\)'
 replacement = '](https://github.com/B0yko/taskdistill/blob/v0.1.1/\1)'
 
 [[tool.hatch.metadata.hooks.fancy-pypi-readme.substitutions]]
+pattern = '(src|srcset)="(?!https?://)([^"]+)"'
+replacement = '\1="https://raw.githubusercontent.com/B0yko/taskdistill/v0.1.1/\2"'
+
+[[tool.hatch.metadata.hooks.fancy-pypi-readme.substitutions]]
 pattern = '\]\(#([^)\s]+)\)'
 replacement = '](https://github.com/B0yko/taskdistill/blob/v0.1.1/README.md#\1)'
 

@@ -1,11 +1,35 @@
-# taskdistill
+<div align="center">
 
-**Replace an expensive LLM API call on a narrow task with a small fine-tuned model on your Mac, and prove it with
-numbers.** taskdistill captures the traffic your application already sends, curates it into training data, LoRA
-fine-tunes a 0.5B–1.5B Qwen2.5 student with MLX on Apple Silicon, evaluates it against the original model on held-out
-data, and serves an OpenAI-compatible cascade: the student answers first and hands the request to the original model
-(the teacher) when its confidence is below a threshold chosen on validation data. Your application changes
-only its base URL.
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/logo-dark.svg">
+  <img alt="taskdistill" src="docs/assets/logo-light.svg" width="352">
+</picture>
+
+**Replace an expensive LLM API call on a narrow task with a small model on your Mac, and prove it with numbers.**
+
+[![CI](https://github.com/B0yko/taskdistill/actions/workflows/ci.yml/badge.svg)](https://github.com/B0yko/taskdistill/actions/workflows/ci.yml)
+[![PyPI](https://img.shields.io/pypi/v/taskdistill?color=ff9543)](https://pypi.org/project/taskdistill/)
+[![Python](https://img.shields.io/pypi/pyversions/taskdistill?color=ff9543)](https://pypi.org/project/taskdistill/)
+[![Apple Silicon](https://img.shields.io/badge/Apple%20Silicon-MLX-0e1117?logo=apple&logoColor=white)](#limitations)
+[![License](https://img.shields.io/badge/license-Apache--2.0-0e1117)](LICENSE)
+
+[Quickstart](#quickstart) · [How it works](#how-it-works) · [Your own call](#use-it-on-your-own-call) · [Results](#results) · [Limitations](#limitations)
+
+<!-- sync:headline -->
+<table>
+<tr><td align="center" width="33%"><h3>97.6%</h3>agreement with the teacher<br><sub>Banking77 test set, 23.7% of requests escalated</sub></td><td align="center" width="33%"><h3>30× faster</h3>student vs teacher API at p50<br><sub>19.9 ms vs 594 ms, Mac Studio M4 Max</sub></td><td align="center" width="33%"><h3>$0.25</h3>total API spend<br><sub>17,302 teacher calls for the whole build</sub></td></tr>
+</table>
+
+<sub>Not every target held: on invoices the cascade missed its 97.0% target on the test set (layouts never seen in training), reaching 94.1%. Details in <a href="#results">Results</a>.</sub>
+<!-- /sync -->
+
+</div>
+
+taskdistill captures the traffic your application already sends, curates it into training data, LoRA fine-tunes a
+0.5B–1.5B Qwen2.5 student with MLX on Apple Silicon, evaluates it against the original model on held-out data, and
+serves an OpenAI-compatible cascade: the student answers first and hands the request to the original model (the
+teacher) when its confidence is below a threshold chosen on validation data. Your application changes only its base
+URL.
 
 ![taskdistill demo banking77, then a request to the cascade server](docs/demo.svg)
 
@@ -26,6 +50,9 @@ taskdistill is for the engineers who own such a call. It gives you a reproducibl
 
 ### How it relates to other tools
 
+<details>
+<summary>OpenPipe, Predibase / LoRAX, RouteLLM, FrugalGPT, distilabel and LiteLLM, compared</summary>
+
 | Project | What it does | What it does not do here |
 |---|---|---|
 | [OpenPipe](https://openpipe.ai) | Hosted fine-tuning of smaller models from logged requests; acquired by CoreWeave in 2025, its platform stopped new training and inference on 30 July 2026 and moved to Weights & Biases. | Not local; its open-source repository has been paused since 2024. |
@@ -34,6 +61,8 @@ taskdistill is for the engineers who own such a call. It gives you a reproducibl
 | [FrugalGPT](https://arxiv.org/abs/2305.05176) | Research method and code for a cascade over a sequence of paid LLM APIs. | It cascades between existing API models; no local student, no capture proxy. |
 | [distilabel](https://github.com/argilla-io/distilabel) | Pipelines that generate synthetic data and AI feedback and emit datasets. | It neither trains nor serves models. |
 | [LiteLLM](https://github.com/BerriAI/litellm) | Gateway exposing 100+ LLM APIs in the OpenAI format, with routing, cost tracking and logging; fine-tuning passes through to hosted APIs. | It does not build training sets from its logs or distil locally. |
+
+</details>
 
 The gap taskdistill fills: one local, open-source pipeline from captured traffic to a cascade with a
 validation-chosen threshold on Apple Silicon, with an evaluation report you can reproduce offline. (Statements checked against each project's own site or
@@ -221,6 +250,9 @@ Test split, n = 3,075. Cells are the score and its 95% paired bootstrap interval
 | student qwen2.5-0.5b (gold labels) | 3,075 | 92.0% [91.0, 92.9] | 92.0% [91.0, 92.9] | 75.8% [74.2, 77.4] | 1.4% [1.0, 2.4] | 0.915 [0.897, 0.931] |
 | cascade (qwen2.5-0.5b-full-s13, t = 0.874) | 3,075 | 76.1% [74.5, 77.7] | 75.0% [73.3, 76.2] | 97.6% [97.0, 98.1] | — | — |
 
+<details>
+<summary>Per-seed scores</summary>
+
 Per-seed scores for `student qwen2.5-0.5b (teacher labels, 3 seeds)` (selected run: `qwen2.5-0.5b-full-s13`):
 
 | Run | Seed | Accuracy | Macro-F1 | Agreement | ECE | AUROC |
@@ -228,6 +260,8 @@ Per-seed scores for `student qwen2.5-0.5b (teacher labels, 3 seeds)` (selected r
 | `qwen2.5-0.5b-full-s13` (validation-selected) | 13 | 75.5% [73.8, 77.0] | 74.4% [72.7, 75.6] | 88.1% [86.9, 89.3] | 15.0% [13.7, 16.5] | 0.799 [0.781, 0.816] |
 | `qwen2.5-0.5b-full-s14` | 14 | 75.3% | 74.1% | 87.9% | 15.6% | 0.801 |
 | `qwen2.5-0.5b-full-s15` | 15 | 76.3% | 75.4% | 88.2% | 15.0% | 0.804 |
+
+</details>
 
 |  | Value |
 |---|---|
@@ -256,6 +290,9 @@ Test split, n = 600. The test set is 6 layouts never seen in training, so the ef
 | student qwen2.5-1.5b (gold labels) | 600 | 95.0% [93.0, 96.7] | 93.8% [92.5, 94.9] | 91.4% [89.3, 93.1] | 78.2% [74.8, 81.5] | 93.5% [92.1, 94.6] | 7.8% [5.8, 10.6] | 0.902 [0.869, 0.931] |
 | cascade (qwen2.5-1.5b-full-s13, t = 0.1524) | 600 | 100.0% [100.0, 100.0] | 94.6% [93.9, 95.3] | 94.9% [94.3, 95.6] | 69.2% [65.3, 72.8] | 94.1% [93.3, 94.9] | — | — |
 
+<details>
+<summary>Per-seed scores</summary>
+
 Per-seed scores for `student qwen2.5-0.5b (teacher labels, 3 seeds)` (selected run: `qwen2.5-0.5b-full-s13`):
 
 | Run | Seed | JSON validity | Field micro-F1 | Field EM | Doc EM | Agreement | ECE | AUROC |
@@ -263,6 +300,11 @@ Per-seed scores for `student qwen2.5-0.5b (teacher labels, 3 seeds)` (selected r
 | `qwen2.5-0.5b-full-s13` (validation-selected) | 13 | 100.0% [100.0, 100.0] | 90.9% [89.9, 91.8] | 91.3% [90.4, 92.2] | 55.3% [51.3, 59.3] | 90.4% [89.3, 91.4] | 8.4% [6.7, 11.8] | 0.913 [0.888, 0.935] |
 | `qwen2.5-0.5b-full-s14` | 14 | 92.2% | 88.5% | 84.2% | 47.2% | 88.3% | 7.3% | 0.962 |
 | `qwen2.5-0.5b-full-s15` | 15 | 99.2% | 82.3% | 82.3% | 15.2% | 81.8% | 31.0% | 0.747 |
+
+</details>
+
+<details>
+<summary>Template-cluster bootstrap over 6 layouts</summary>
 
 Template-cluster bootstrap over 6 groups (one per layout): 95% intervals.
 
@@ -275,6 +317,8 @@ Template-cluster bootstrap over 6 groups (one per layout): 95% intervals.
 | student qwen2.5-1.5b (teacher labels) | [97.8, 100.0] | [87.1, 98.5] | [86.9, 98.4] | [38.7, 89.3] | [85.5, 98.5] | [4.2, 41.6] | [0.696, 0.977] |
 | student qwen2.5-1.5b (gold labels) | [87.3, 99.0] | [83.2, 98.8] | [77.8, 98.3] | [47.0, 94.7] | [82.1, 98.8] | [4.1, 28.7] | [0.871, 0.991] |
 | cascade (qwen2.5-1.5b-full-s13, t = 0.1524) | [100.0, 100.0] | [88.3, 98.7] | [89.1, 98.7] | [41.0, 89.8] | [86.7, 98.7] | — | — |
+
+</details>
 
 <details>
 <summary>Per-template scores (student, teacher, cascade)</summary>
@@ -482,6 +526,9 @@ Reference: MacBook Air, Apple M5, 24 GB (Mac17,4), macOS 26.6.2, 2026-09-27. Rer
 | Banking77 | 0.78 pts | yes |
 | Invoices | 10.17 pts | no |
 
+<details>
+<summary>Main metric of every row, both machines</summary>
+
 | Task | Row | Metric | Reference | Rerun | Diff |
 |---|---|---|---|---|---|
 | Banking77 | teacher (deepseek/deepseek-v4.1-flash) | Accuracy | 75.8% | 75.8% | +0.00 pts |
@@ -493,11 +540,20 @@ Reference: MacBook Air, Apple M5, 24 GB (Mac17,4), macOS 26.6.2, 2026-09-27. Rer
 | Invoices | student qwen2.5-1.5b (teacher labels) | Field micro-F1 | 94.1% | 94.5% | +0.46 pts |
 | Invoices | student qwen2.5-1.5b (gold labels) | Field micro-F1 | 93.8% | 91.5% | -2.37 pts |
 
+</details>
+
 Banking77: the selected run differed — `qwen2.5-0.5b-full-s13` on the reference machine vs `qwen2.5-1.5b-full-s13` on the rerun (reference: “large gains 0.97 points, below the 1.00-point minimum”; rerun: “large gains 1.26 points (>= 1.00) at 1.87x the small p95 (< 3x)”). Invoices: the selected run matched on both machines (`qwen2.5-1.5b-full-s13`).
 
 All rows within tolerance across every task: no.
 
-Outside the tolerance: Invoices student qwen2.5-0.5b (teacher labels, 3 seeds), Doc EM: 39.2% vs 41.6% (+2.33 points); Invoices student qwen2.5-1.5b (teacher labels), Doc EM: 67.5% vs 74.3% (+6.83 points); Invoices student qwen2.5-1.5b (gold labels), JSON validity: 95.0% vs 98.2% (+3.17 points); Invoices student qwen2.5-1.5b (gold labels), Field micro-F1: 93.8% vs 91.5% (-2.37 points); Invoices student qwen2.5-1.5b (gold labels), Doc EM: 78.2% vs 68.0% (-10.17 points); Invoices student qwen2.5-1.5b (gold labels), Agreement: 93.5% vs 91.0% (-2.43 points).
+Outside the tolerance:
+
+- Invoices student qwen2.5-0.5b (teacher labels, 3 seeds), Doc EM: 39.2% vs 41.6% (+2.33 points)
+- Invoices student qwen2.5-1.5b (teacher labels), Doc EM: 67.5% vs 74.3% (+6.83 points)
+- Invoices student qwen2.5-1.5b (gold labels), JSON validity: 95.0% vs 98.2% (+3.17 points)
+- Invoices student qwen2.5-1.5b (gold labels), Field micro-F1: 93.8% vs 91.5% (-2.37 points)
+- Invoices student qwen2.5-1.5b (gold labels), Doc EM: 78.2% vs 68.0% (-10.17 points)
+- Invoices student qwen2.5-1.5b (gold labels), Agreement: 93.5% vs 91.0% (-2.43 points)
 
 ### Calibration
 
@@ -574,6 +630,9 @@ A task lives in `tasks/<task>/task.yaml` next to its teacher prompt and its labe
 can use `${NAME}` or `${NAME:-default}` environment references. Unknown keys are errors, and every validation error
 names the offending key.
 
+<details>
+<summary>Every <code>task.yaml</code> key</summary>
+
 | Key | Default | Meaning |
 |---|---|---|
 | `task` | (required) | Task name: 1–64 letters, digits, `.`, `_` or `-`. Data lives in `$TASKDISTILL_HOME/<task>/`. |
@@ -622,6 +681,8 @@ names the offending key.
 | `cost.usd_per_kwh` | `0.30` | Electricity price. |
 | `cost.hardware_usd`, `cost.amortisation_hours` | `0`, `0` | Hardware amortisation, applied only when both are above 0. |
 | `budget.usd_cap` | `null` | Optional per-task spend cap; `TASKDISTILL_BUDGET_USD` always applies. |
+
+</details>
 
 **Environment** (see `.env.example`): `TASKDISTILL_TEACHER_BASE_URL`, `TASKDISTILL_TEACHER_API_KEY` (falls back to
 `OPENROUTER_API_KEY`), `TASKDISTILL_TEACHER_MODEL`, `TASKDISTILL_BUDGET_USD` (global spend cap, default 5.00),

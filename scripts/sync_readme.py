@@ -488,6 +488,63 @@ def render_quickstart_timing() -> str:
     return "\n".join(lines)
 
 
+@renderer("headline")
+def render_headline() -> str:
+    """Three headline numbers under the title, plus the target that did not hold, when one did not."""
+    banking = load("banking77/report.json")
+    invoices = load("invoices/report.json")
+    studio = load_optional("banking77/report_mac_studio.json") or banking
+    spend = load_optional("spend.json") or {}
+    op = banking.get("operating_point") or {}
+    latency = studio.get("cost_latency") or {}
+    teacher_p50 = _num(((latency.get("teacher") or {}).get("latency_ms") or {}).get("p50"))
+    student_p50 = _num(((latency.get("student") or {}).get("latency_ms") or {}).get("p50"))
+    hardware = studio.get("hardware") or {}
+    machine = " ".join(
+        str(part) for part in (product_name(hardware), str(hardware.get("cpu") or "").replace("Apple ", "")) if part
+    )
+    cells = [
+        (
+            pct((op.get("quality") or {}).get("test")),
+            "agreement with the teacher",
+            f"Banking77 test set, {pct((op.get('escalation_rate') or {}).get('test'))} of requests escalated",
+        )
+    ]
+    if teacher_p50 and student_p50:
+        cells.append(
+            (
+                f"{teacher_p50 / student_p50:.0f}× faster",
+                "student vs teacher API at p50",
+                f"{ms(student_p50)} ms vs {ms(teacher_p50)} ms{', ' + machine if machine else ''}",
+            )
+        )
+    if spend.get("total") is not None:
+        cells.append(
+            (f"${_num(spend['total']) or 0:.2f}", "total API spend",
+             f"{integer(spend.get('calls'))} teacher calls for the whole build")
+        )  # fmt: skip
+    row = "".join(
+        f'<td align="center" width="{100 // len(cells)}%"><h3>{big}</h3>{label}<br><sub>{detail}</sub></td>'
+        for big, label, detail in cells
+    )
+    lines = ["<table>", f"<tr>{row}</tr>", "</table>"]
+    missed = []
+    unseen = " (layouts never seen in training)"
+    for label, report, where in (("Banking77", banking, ""), ("invoices", invoices, unseen)):
+        rop = report.get("operating_point") or {}
+        if rop.get("target_met_on_test") is False:
+            missed.append(
+                f"on {label} the cascade missed its {pct(rop.get('target'))} target on the test set{where}, "
+                f"reaching {pct((rop.get('quality') or {}).get('test'))}"
+            )
+    if missed:
+        lines += [
+            "",
+            f'<sub>Not every target held: {"; ".join(missed)}. Details in <a href="#results">Results</a>.</sub>',
+        ]
+    return "\n".join(lines)
+
+
 # == results: per-section builders ======================================================================
 
 
@@ -601,7 +658,7 @@ def _seeded_rows_tables(all_rows: Sequence[Mapping[str, Any]], columns: Sequence
         row = find_row(all_rows, "student", labels="teacher", base_hint=hint)
         if row and (row.get("n_seeds") or 0) > 1:
             lines += _seeded_row_table(row, columns)
-    return lines
+    return ["<details>", "<summary>Per-seed scores</summary>", "", *lines, "</details>", ""] if lines else []
 
 
 def _ordered_quality_rows(all_rows: Sequence[Mapping[str, Any]], task_type: str) -> list[Mapping[str, Any]]:
@@ -676,9 +733,14 @@ def _quality_section_invoices(report: Mapping[str, Any]) -> list[str]:
             if row.get("ci_cluster")
         ]
         lines += [
+            "<details>",
+            f"<summary>Template-cluster bootstrap over {integer(n_groups)} layouts</summary>",
+            "",
             f"Template-cluster bootstrap over {integer(n_groups)} groups (one per layout): 95% intervals.",
             "",
             *md_table(["System", *[col_label(m) for m in columns]], cluster_rows),
+            "",
+            "</details>",
             "",
         ]
     per_group = quality.get("per_group")
@@ -936,7 +998,9 @@ def _reproducibility_section(reproduction: Mapping[str, Any] | None) -> list[str
             )
     lines += [*md_table(["Task", "Max abs difference", "All rows within tolerance"], task_rows), ""]
     if metric_rows:
-        lines += [*md_table(["Task", "Row", "Metric", "Reference", "Rerun", "Diff"], metric_rows), ""]
+        lines += ["<details>", "<summary>Main metric of every row, both machines</summary>", "",
+                  *md_table(["Task", "Row", "Metric", "Reference", "Rerun", "Diff"], metric_rows), "",
+                  "</details>", ""]  # fmt: skip
     if selected_sentences:
         lines += [" ".join(selected_sentences), ""]
     outside = []
@@ -951,7 +1015,7 @@ def _reproducibility_section(reproduction: Mapping[str, Any] | None) -> list[str
     overall = "yes" if reproduction.get("all_within") else "no"
     lines += [f"All rows within tolerance across every task: {overall}.", ""]
     if outside:
-        lines += ["Outside the tolerance: " + "; ".join(outside) + ".", ""]
+        lines += ["Outside the tolerance:", "", *[f"- {item}" for item in outside], ""]
     return lines
 
 

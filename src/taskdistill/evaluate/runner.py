@@ -1279,15 +1279,17 @@ def _evaluate(
         correct,
         out_dir / f"reliability_{split}.png",
         calibrated=isotonic.primary.apply(conf),
-        title=f"{info.run_id} on {split}: raw vs isotonic ({isotonic.primary_reference})",
+        title="Raw vs isotonic confidence",
+        subtitle=f"{info.run_id} · {split} split · against the {isotonic.primary_reference}",
     )
     curve_png = plot_threshold_curve(
         threshold.curve,
         threshold.point,
         out_dir / "threshold_curve.png",
-        f"{info.run_id}: cascade on validation",
+        "Cascade quality against escalation rate",
         target=threshold.target_value,
-        quality_label=f"{cascade.metric} vs {cascade.reference}",
+        quality_label=f"{cascade.metric} against the {cascade.reference}",
+        subtitle=f"{info.run_id} · validation split · threshold chosen here",
     )
     run_threshold, task_threshold = _write_thresholds(
         spec, info, threshold, date=date, log=log, task_level=True if promote else None

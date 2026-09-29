@@ -261,7 +261,7 @@ def test_template_cluster_table_formats_auroc_plain_not_percent(sync: types.Modu
     """The invoices template-cluster bootstrap table must format AUROC like the main quality table does (plain,
     3 decimals), not as a percentage interval."""
     body = sync.RENDERERS["results"]()
-    section = body.split("Template-cluster bootstrap")[1].split("Per-template scores")[0]
+    section = body.split("groups (one per layout)")[1].split("Per-template scores")[0]
     assert "[0.600, 0.900]" in section  # the 0.5B zero-shot row's cluster AUROC interval, plain
     assert "[60.0, 90.0]" not in section  # never as if it were a percentage
 
@@ -544,3 +544,10 @@ def test_per_template_scores_are_collapsed(sync: types.ModuleType) -> None:
     body = sync.RENDERERS["results"]()
     block = body.split("<summary>Per-template scores (student, teacher, cascade)</summary>")[1].split("</details>")[0]
     assert "| Template |" in block
+
+
+def test_headline_has_three_numbers_and_names_a_missed_target(sync: types.ModuleType) -> None:
+    body = sync.RENDERERS["headline"]()
+    assert body.startswith("<table>")
+    assert body.count("<h3>") >= 2
+    assert "agreement with the teacher" in body
