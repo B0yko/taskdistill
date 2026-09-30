@@ -776,3 +776,5 @@ prints the spend by task and phase.
 ## Licence
 
 Apache-2.0. See [LICENSE](LICENSE). Copyright 2026 Andrii Boiko.
+
+Built by [Andrii Boiko](https://boiko.ai/) · [Project overview](https://boiko.ai/work/taskdistill/).
