@@ -1,9 +1,6 @@
 <div align="center">
 
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/logo-dark.svg">
-  <img alt="taskdistill" src="docs/assets/logo-light.svg" width="352">
-</picture>
+<img src=".github/social-preview.png" alt="taskdistill: stop paying the API for easy requests" width="880">
 
 **Replace an expensive LLM API call on a narrow task with a small model on your Mac, and prove it with numbers.**
 
