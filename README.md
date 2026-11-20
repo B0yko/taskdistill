@@ -72,10 +72,10 @@ installed. No API key is needed: without one, the demo replays the recorded teac
 package.
 
 ```bash
-uvx --from git+https://github.com/B0yko/taskdistill@v0.1.1 taskdistill demo banking77
+uvx --from 'taskdistill==0.1.1' taskdistill demo banking77
 ```
 
-The same release is on PyPI: `uvx taskdistill demo banking77` runs it without cloning anything.
+This installs [taskdistill 0.1.1 from PyPI](https://pypi.org/project/taskdistill/0.1.1/). To run the same demo from source, use [the v0.1.1 tag](https://github.com/B0yko/taskdistill/tree/v0.1.1).
 
 <!-- sync:quickstart-timing -->
 Measured quick-profile demos in replay mode, each in a fresh workspace and directory (2026-09-27; `reports/demo_timing.json`):
@@ -95,7 +95,7 @@ The demo runs the whole pipeline on [Banking77](#data-and-licences) and leaves a
 `reports/banking77/` and a `request.json` in the current directory. Serve the cascade and call it:
 
 ```bash
-uvx --from git+https://github.com/B0yko/taskdistill@v0.1.1 taskdistill serve --task banking77
+uvx --from 'taskdistill==0.1.1' taskdistill serve --task banking77
 ```
 
 ```bash
